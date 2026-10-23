@@ -1,0 +1,40 @@
+# Dependencies and generated builds
+node_modules/
+dist/
+dist-app/
+target/
+src-tauri/target/
+src-tauri/gen/
+*.exe
+*.dll
+*.pdb
+
+# Machine-specific compiler configuration
+.cargo/config.toml
+src-tauri/.cargo/config.toml
+
+# Local review artifacts and history
+.ui-backups/
+.ui-review/
+UI-交付说明.md
+work/
+*.log
+
+# Local credentials, vaults and backups
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.acvault
+vault.meta
+*.bak
+*.pre_restore_*
+
+# Editor and operating system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

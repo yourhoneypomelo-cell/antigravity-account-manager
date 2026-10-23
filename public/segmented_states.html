@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>SegmentedControl 统一蓝色选中态与六种交互状态规范</title>
+  <style>
+    :root {
+      --seg-base: #F0F2F5;
+      --seg-base-border: #DFE3E8;
+      --seg-unselected-text: #55606F;
+      --seg-unselected-hover: #E4E8EF;
+      --seg-unselected-active: #D9DFE8;
+      --seg-selected-bg: #E0EAFE;
+      --seg-selected-border: #6686BD;
+      --seg-selected-text: #244B8A;
+      --seg-selected-hover: #D7E4FC;
+      --seg-selected-active: #CADBF9;
+      --seg-focus-ring: #315FAD;
+    }
+    .dark {
+      --seg-base: #23262C;
+      --seg-base-border: #373C45;
+      --seg-unselected-text: #B8C0CE;
+      --seg-unselected-hover: #2C323C;
+      --seg-unselected-active: #343D4C;
+      --seg-selected-bg: #283B5C;
+      --seg-selected-border: #769AD9;
+      --seg-selected-text: #D9E7FF;
+      --seg-selected-hover: #30466A;
+      --seg-selected-active: #38527B;
+      --seg-focus-ring: #94B6F3;
+    }
+
+    body {
+      font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+      margin: 0;
+      padding: 32px 28px;
+      background: #F4F5F7;
+      color: #252525;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    .header {
+      margin-bottom: 28px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 6px 0;
+      color: #1A1F26;
+    }
+    .header p {
+      font-size: 13px;
+      color: #626262;
+      margin: 0;
+    }
+
+    .grid-two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .panel {
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .panel-light {
+      background: #FFFFFF;
+      border: 1px solid #E2E5EA;
+    }
+    .panel-dark {
+      background: #181A1E;
+      border: 1px solid #2C313A;
+      color: #EDEDED;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #E6E9EE;
+      margin: 0 0 16px 0;
+    }
+    .panel-dark .section-title {
+      border-bottom-color: #2E333C;
+    }
+
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    .spec-table th, .spec-table td {
+      padding: 10px 4px;
+      font-size: 13px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .spec-table th {
+      font-weight: 600;
+      color: #55606F;
+      border-bottom: 1px solid #E8ECF0;
+    }
+    .panel-dark .spec-table th {
+      color: #9E9E9E;
+      border-bottom-color: #333842;
+    }
+    .spec-table td {
+      border-bottom: 1px solid #F0F2F5;
+    }
+    .panel-dark .spec-table td {
+      border-bottom-color: #262A32;
+    }
+
+    /* Segmented Control Base */
+    .seg-group {
+      position: relative;
+      height: 36px;
+      width: 240px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      border-radius: 8px;
+      background: var(--seg-base);
+      border: 1px solid var(--seg-base-border);
+      user-select: none;
+    }
+
+    .seg-opt {
+      flex: 1;
+      height: 30px;
+      font-size: 13px;
+      line-height: 20px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-radius: 5px;
+      box-sizing: border-box;
+      position: relative;
+      z-index: 2;
+      color: var(--seg-unselected-text);
+      transition: background-color 100ms cubic-bezier(0.2, 0, 0, 1), color 100ms cubic-bezier(0.2, 0, 0, 1);
+      cursor: pointer;
+    }
+
+    /* Selected Item (Unified Blue) */
+    .seg-opt.selected {
+      background: var(--seg-selected-bg);
+      border: 1px solid var(--seg-selected-border);
+      color: var(--seg-selected-text);
+    }
+
+    /* Unselected Hover & Press */
+    .seg-opt.unselected-hover {
+      background: var(--seg-unselected-hover);
+    }
+    .seg-opt.unselected-active {
+      background: var(--seg-unselected-active);
+    }
+
+    /* Selected Hover & Press */
+    .seg-opt.selected-hover {
+      background: var(--seg-selected-hover);
+    }
+    .seg-opt.selected-active {
+      background: var(--seg-selected-active);
+    }
+
+    /* Focus visible */
+    .seg-opt.focused {
+      box-shadow: 0 0 0 2px var(--seg-focus-ring);
+    }
+
+    .badge-contrast {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #EEF2F6;
+      color: #445060;
+      font-family: Consolas, monospace;
+    }
+    .panel-dark .badge-contrast {
+      background: #252A32;
+      color: #B0BACC;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Antigravity Account Manager ｜ 分段选择器统一蓝色规范与微交互对照</h1>
+      <p>规则：任意字段（两步验证、跳过密码、验证器、辅助邮箱/电话）在所有有效值下均使用统一蓝色选中块；鼠标悬停其他项仅呈现中性灰，绝不出现双选中假象。</p>
+    </div>
+
+    <div class="grid-two">
+      <!-- Light Mode Panel -->
+      <div class="panel panel-light">
+        <h2 class="section-title">浅色主题 (Light Mode) 业务字段与交互验收</h2>
+
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;">字段与测试场景</th>
+              <th style="width: 250px;">选择器渲染</th>
+              <th>视觉说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>两步验证：未填写</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt selected">未填写</div>
+                  <div class="seg-opt">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">#E0EAFE / #6686BD</span></td>
+            </tr>
+            <tr>
+              <td>两步验证：开启</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一蓝色，不使用绿色</span></td>
+            </tr>
+            <tr>
+              <td>两步验证：关闭</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt">开启</div>
+                  <div class="seg-opt selected">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一蓝色，不使用暗灰</span></td>
+            </tr>
+            <tr>
+              <td>跳过密码：开启</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一蓝色</span></td>
+            </tr>
+            <tr>
+              <td>验证器：关闭</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt">开启</div>
+                  <div class="seg-opt selected">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一蓝色</span></td>
+            </tr>
+            <tr>
+              <td>辅助邮箱：有</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt">无</div>
+                  <div class="seg-opt selected">有</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一蓝色</span></td>
+            </tr>
+            <tr>
+              <td>辅助电话：无</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected">无</div>
+                  <div class="seg-opt">有</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一蓝色</span></td>
+            </tr>
+            <tr style="background: rgba(37,99,235,0.03);">
+              <td><strong>高危对照：选中“关闭”，鼠标悬停“开启”</strong></td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt unselected-hover">开启</div>
+                  <div class="seg-opt selected">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast" style="color: #244B8A; font-weight: 600;">悬停为浅中性灰 #E4E8EF，无蓝色描边，一眼识别关闭为当前值</span></td>
+            </tr>
+            <tr>
+              <td>键盘焦点 (Tab/方向键)</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected focused">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">独立焦点环 #315FAD</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Dark Mode Panel -->
+      <div class="panel panel-dark dark">
+        <h2 class="section-title">深色主题 (Dark Mode) 业务字段与交互验收</h2>
+
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th style="width: 130px;">字段与测试场景</th>
+              <th style="width: 250px;">选择器渲染</th>
+              <th>视觉说明</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>两步验证：未填写</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt selected">未填写</div>
+                  <div class="seg-opt">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">#283B5C / #769AD9</span></td>
+            </tr>
+            <tr>
+              <td>两步验证：开启</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一深蓝高对比</span></td>
+            </tr>
+            <tr>
+              <td>两步验证：关闭</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt">开启</div>
+                  <div class="seg-opt selected">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一深蓝高对比</span></td>
+            </tr>
+            <tr>
+              <td>跳过密码：开启</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一深蓝高对比</span></td>
+            </tr>
+            <tr>
+              <td>验证器：关闭</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt">开启</div>
+                  <div class="seg-opt selected">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一深蓝高对比</span></td>
+            </tr>
+            <tr>
+              <td>辅助邮箱：有</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt">无</div>
+                  <div class="seg-opt selected">有</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一深蓝高对比</span></td>
+            </tr>
+            <tr>
+              <td>辅助电话：无</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected">无</div>
+                  <div class="seg-opt">有</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">统一深蓝高对比</span></td>
+            </tr>
+            <tr style="background: rgba(96,165,250,0.05);">
+              <td><strong>高危对照：选中“关闭”，鼠标悬停“开启”</strong></td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt unselected-hover">开启</div>
+                  <div class="seg-opt selected">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast" style="color: #94B6F3; font-weight: 600;">悬停为深中性灰 #2C323C，无蓝色描边，状态绝对不混淆</span></td>
+            </tr>
+            <tr>
+              <td>键盘焦点 (Tab/方向键)</td>
+              <td>
+                <div class="seg-group">
+                  <div class="seg-opt">未填写</div>
+                  <div class="seg-opt selected focused">开启</div>
+                  <div class="seg-opt">关闭</div>
+                </div>
+              </td>
+              <td><span class="badge-contrast">独立焦点环 #94B6F3</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

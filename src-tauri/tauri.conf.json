@@ -1,0 +1,39 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Antigravity Account Manager",
+  "version": "1.0.0",
+  "identifier": "com.accountvault.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Antigravity Account Manager",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/aam-v3-refined/32x32.png",
+      "icons/aam-v3-refined/128x128.png",
+      "icons/aam-v3-refined/128x128@2x.png",
+      "icons/aam-v3-refined/icon.icns",
+      "icons/aam-v3-refined/icon.ico"
+    ]
+  }
+}

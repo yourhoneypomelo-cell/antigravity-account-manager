@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Account Item States Preview</title>
+  <link rel="stylesheet" href="./assets/index.css">
+  <style>
+    body {
+      font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #0f1216;
+      color: #ECEFF3;
+    }
+    .grid-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .panel {
+      padding: 20px;
+      border-radius: 8px;
+    }
+    .panel-light {
+      background: #F9F9F9;
+      color: #252525;
+      border: 1px solid #D6D6D6;
+    }
+    .panel-dark {
+      background: #181818;
+      color: #EDEDED;
+      border: 1px solid #3A3A3A;
+    }
+    .state-title {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+    .state-title:first-child {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <h2 style="font-size: 16px; margin: 0; font-weight: 600;">账号条目交互状态对照图（58px 行高 · 14px 邮箱 · 12px 备注 · 中性灰底）</h2>
+    <p style="font-size: 12px; color: #767676; margin: 4px 0 0 0;">Default · Hover · Active (按下) · Selected (已选中) · Keyboard Focus-visible (键盘焦点)</p>
+  </div>
+
+  <div class="grid-container">
+    <!-- Light Mode Column -->
+    <div class="panel panel-light">
+      <h3 style="font-size: 14px; font-weight: 600; color: #252525; margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid #E6E6E6; padding-bottom: 8px;">
+        浅色模式 (Light Mode) · 中性灰阶
+      </h3>
+
+      <div class="state-title" style="color: #626262;">1. 默认状态 (Default · 透明背景)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-transparent text-[#252525]">
+        <div className="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">carol.test.dev@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#767676]">测试备用账号</span></div>
+      </div>
+
+      <div class="state-title" style="color: #626262;">2. 悬停状态 (Hover · #ECECEC)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#ECECEC] text-[#252525]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">bob.ai.research@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#626262]">AI模型评测专用</span></div>
+      </div>
+
+      <div class="state-title" style="color: #626262;">3. 按下状态 (Active/Pressed · #DFDFDF)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#DFDFDF] text-[#252525]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">bob.ai.research@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#626262]">AI模型评测专用</span></div>
+      </div>
+
+      <div class="state-title" style="color: #252525;">4. 已选中状态 (Selected · #E4E4E4 中性灰底，无蓝边无阴影)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#E4E4E4] text-[#252525]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">alex.work.demo@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#626262]">主力研发工作号</span></div>
+      </div>
+
+      <div class="state-title" style="color: #252525;">5. 键盘焦点状态 (Keyboard Focus-Visible · 1px 细轮廓)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#E4E4E4] text-[#252525] ring-1 ring-[#2563EB]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">alex.work.demo@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#626262]">主力研发工作号</span></div>
+      </div>
+
+      <div class="state-title" style="color: #626262;">6. 无备注时（邮箱顶端起始位置严格一致对齐）</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-transparent text-[#252525]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">no.remark.account@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"></div>
+      </div>
+    </div>
+
+    <!-- Dark Mode Column -->
+    <div class="panel panel-dark">
+      <h3 style="font-size: 14px; font-weight: 600; color: #EDEDED; margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid #2B2B2B; padding-bottom: 8px;">
+        深色模式 (Dark Mode) · 中性灰阶
+      </h3>
+
+      <div class="state-title" style="color: #9E9E9E;">1. 默认状态 (Default · 透明背景)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-transparent text-[#EDEDED]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">carol.test.dev@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#767676]">测试备用账号</span></div>
+      </div>
+
+      <div class="state-title" style="color: #9E9E9E;">2. 悬停状态 (Hover · #272727)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#272727] text-[#EDEDED]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">bob.ai.research@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#9E9E9E]">AI模型评测专用</span></div>
+      </div>
+
+      <div class="state-title" style="color: #9E9E9E;">3. 按下状态 (Active/Pressed · #242424)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#242424] text-[#EDEDED]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">bob.ai.research@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#9E9E9E]">AI模型评测专用</span></div>
+      </div>
+
+      <div class="state-title" style="color: #EDEDED;">4. 已选中状态 (Selected · #2C2C2C 中性灰底)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#2C2C2C] text-[#EDEDED]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">alex.work.demo@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#9E9E9E]">主力研发工作号</span></div>
+      </div>
+
+      <div class="state-title" style="color: #EDEDED;">5. 键盘焦点状态 (Keyboard Focus-Visible · 1px 轮廓)</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-[#2C2C2C] text-[#EDEDED] ring-1 ring-[#60A5FA]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">alex.work.demo@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"><span class="text-[12px] leading-4 truncate block w-full text-[#9E9E9E]">主力研发工作号</span></div>
+      </div>
+
+      <div class="state-title" style="color: #9E9E9E;">6. 无备注时（邮箱顶端起始位置严格一致对齐）</div>
+      <div class="w-full h-[58px] px-3 pt-2.5 pb-2.5 rounded-[7px] text-left flex flex-col justify-start bg-transparent text-[#EDEDED]">
+        <div class="h-5 flex items-center"><span class="text-[14px] leading-5 font-medium truncate block w-full">no.remark.account@gmail.com</span></div>
+        <div class="h-4 flex items-center mt-0.5"></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

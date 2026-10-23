@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>Antigravity Account Manager — editable graphite background</title>
+  <desc>Vector rounded rectangle with editable dark gradient. Transparent outside the rounded corners.</desc>
+  <defs>
+    <linearGradient id="tile-tone" x1="160" y1="0" x2="864" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#151a20"/>
+      <stop offset="1" stop-color="#101419"/>
+    </linearGradient>
+  </defs>
+  <g id="background">
+    <rect x="0.5" y="0.5" width="1023" height="1023" rx="180" fill="url(#tile-tone)" stroke="#242b34" stroke-width="1"/>
+  </g>
+</svg>

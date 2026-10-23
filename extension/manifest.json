@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "AccountVault Security Helper",
+  "version": "1.0",
+  "description": "Automatically extracts Google Security configuration and syncs with AccountVault",
+  "content_scripts": [
+    {
+      "matches": ["https://myaccount.google.com/security*", "https://myaccount.google.com/signinoptions/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": []
+}
