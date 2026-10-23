@@ -55,7 +55,7 @@ The current interface uses Chinese labels:
 | --- | --- |
 | 新增 / 新增账号 | Add / add account |
 | 安全性与登录 | Security and sign-in |
-| Gemini 会员 | Gemini subscription |
+| Google AI 订阅 | Google AI subscription |
 | 编辑 | Edit |
 | 保存修改 | Save changes |
 | 导入 | Import |

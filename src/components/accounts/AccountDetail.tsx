@@ -84,7 +84,7 @@ function AntigravityLogoIcon({ className }: { className?: string }) {
 
 const detailTabs = [
   { id: "security", label: "安全性与登录", icon: "shield" },
-  { id: "membership", label: "Gemini 会员", icon: "gemini" },
+  { id: "membership", label: "Google AI 订阅", icon: "gemini" },
   { id: "switcher", label: "切号工具", icon: "switcher" },
   { id: "quota", label: "配额查询", icon: "quota" },
   { id: "antigravity", label: "Antigravity", icon: "antigravity" },
@@ -1464,7 +1464,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
               </div>
 
               <section className="profile-section" aria-labelledby="membership-heading">
-                <h2 id="membership-heading" className="section-heading">Gemini 会员</h2>
+                <h2 id="membership-heading" className="section-heading">Google AI 订阅</h2>
                 <div className="profile-fields">
                   <Field label="Google 会员链接" id="member-google-one-link">
                     <Tooltip>

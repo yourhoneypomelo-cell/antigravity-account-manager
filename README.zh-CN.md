@@ -42,7 +42,7 @@ Windows 桌面应用 · 当前界面为中文 · 持续开发中
 对于已有的本地便携版，打开 `dist-app/Antigravity Account Manager.exe`，也可以双击同目录的 `启动 Antigravity Account Manager.bat`。
 
 - 首次使用时创建主密码；从旧版升级的用户继续使用原主密码。
-- 新增账号后，在“安全性与登录”“Gemini 会员”页签填写资料，点击“保存修改”。
+- 新增账号后，在“安全性与登录”“Google AI 订阅”页签填写资料，点击“保存修改”。
 - 切换账号前，可以选择保存或放弃未保存的修改。
 - 顶栏提供导入、设置、主题与锁定操作。
 - Chrome 绑定操作见 [Chrome 配置绑定说明](Chrome配置绑定说明.md)。
