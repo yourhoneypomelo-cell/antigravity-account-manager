@@ -853,10 +853,19 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
         setRecoveryPhoneVerified(data.recovery_phone_verified || "已验证");
       } else if (data.has_recovery_phone) {
         setHasRecoveryPhone(data.has_recovery_phone);
+        if (data.has_recovery_phone === "无") {
+          setRecoveryPhone("");
+          setRecoveryPhoneVerified("未填写");
+        }
       }
 
-      if (data.membership_status) setSubStatus(data.membership_status);
-      if (data.membership_plan) setSubPlan(data.membership_plan);
+      if (data.membership_status) {
+        const isInconclusive = data.membership_status === "未开通" && data.membership_plan === "未填写" && !data.membership_start_date;
+        if (!(subStatus === "有效" && isInconclusive)) {
+          setSubStatus(data.membership_status);
+        }
+      }
+      if (data.membership_plan && data.membership_plan !== "未填写") setSubPlan(data.membership_plan);
       if (data.membership_start_date) setSubStartDate(data.membership_start_date);
 
       try {

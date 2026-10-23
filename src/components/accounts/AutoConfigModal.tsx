@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { api } from "../../services/tauri";
 import { ScrapedSecurityData } from "../../types";
+import { cn } from "../../lib/utils";
 
 interface AutoConfigModalProps {
   isOpen: boolean;
@@ -76,24 +77,33 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   const res: ScrapedSecurityData = {};
 
   // Recovery Phone & 2-Step Verification Phones
-  const recPhoneMatch = clean.match(/(?:Recovery phone|辅助电话|恢复电话|密保手机)[\s:\-\n]+([+0-9\s-]{6,20})/i);
+  const recPhoneMatch = clean.match(/(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机)[\s:\-\n]+([^\n]+)/i);
   if (recPhoneMatch) {
-    res.recovery_phone = recPhoneMatch[1].trim();
-    res.has_recovery_phone = "有";
-    res.recovery_phone_verified = "已验证";
+    const val = recPhoneMatch[1].trim();
+    if (/添加手机号码|添加电话号码|Add a phone|Add phone/i.test(val)) {
+      res.has_recovery_phone = "无";
+      res.recovery_phone = null;
+      res.recovery_phone_verified = "未填写";
+    } else {
+      const numMatch = val.match(/([+0-9\s-]{6,20})/);
+      if (numMatch) {
+        res.recovery_phone = numMatch[1].trim();
+        res.has_recovery_phone = "有";
+        res.recovery_phone_verified = "已验证";
+      }
+    }
   }
 
-  const twoFaPhoneMatch = clean.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机)[\s:\-\n]+([+0-9\s-]{6,20})/i);
+  const twoFaPhoneMatch = clean.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机|用于进行两步验证的电话号码)[\s:\-\n]+([+0-9\s-]{6,20})/i);
   if (twoFaPhoneMatch) {
     res.two_factor_phone = twoFaPhoneMatch[1].trim();
-    if (!res.recovery_phone) {
+    if (!res.recovery_phone && res.has_recovery_phone === "有") {
       res.recovery_phone = res.two_factor_phone;
-      res.has_recovery_phone = "有";
       res.recovery_phone_verified = "已验证";
     }
   }
 
-  if (!res.recovery_phone) {
+  if (!res.recovery_phone && !recPhoneMatch) {
     const fallbackPhone = clean.match(/(?:^|\n)\s*([1-9]\d{2}[\s-]?\d{4}[\s-]?\d{4})\s*(?:$|\n)/);
     if (fallbackPhone) {
       res.recovery_phone = fallbackPhone[1].trim();
@@ -119,66 +129,83 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   }
 
   // 2-Step Verification
-  const twoFaMatch = clean.match(/(?:2-Step Verification|两步验证)[\s:\-\n]+(On|Off|开启|关闭|已开启|未开启)/i);
+  const twoFaMatch = clean.match(/(?:2-Step Verification|两步验证)[\s:\-\n]+([^\n]+)/i);
   if (twoFaMatch) {
     const val = twoFaMatch[1].toLowerCase();
-    res.two_factor_status = val === "off" || val === "关闭" || val === "未开启" ? "关闭" : "开启";
+    if (/off|关闭|未开启|未启用|停用/.test(val)) {
+      res.two_factor_status = "关闭";
+    } else if (/on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}/.test(val)) {
+      res.two_factor_status = "开启";
+    }
   } else if (clean.includes("2-Step Verification") || clean.includes("两步验证")) {
     res.two_factor_status = "开启";
   }
 
   // Skip Password
-  const skipPwdMatch = clean.match(/(?:Skip password when possible|尽可能跳过密码)[\s:\-\n]+(On|Off|开启|关闭|已开启|未开启)/i);
+  const skipPwdMatch = clean.match(/(?:Skip password when possible|尽可能跳过密码)[\s:\-\n]+([^\n]+)/i);
   if (skipPwdMatch) {
     const val = skipPwdMatch[1].toLowerCase();
-    res.skip_password_status = val === "off" || val === "关闭" || val === "未开启" ? "关闭" : "开启";
+    res.skip_password_status = /off|关闭|未开启|未启用/.test(val) ? "关闭" : "开启";
   } else {
     res.skip_password_status = "开启";
   }
 
   // Authenticator
-  const notAddedMatch = clean.match(/(?:Authenticator|身份验证器)[\s:\-\n]+(Not added|未添加|Off|关闭)/i);
-  if (notAddedMatch) {
-    res.totp_status = "关闭";
-    res.totp_added_at = null;
-  } else {
-    const totpAddedMatch = clean.match(/(?:Authenticator|身份验证器)[\s:\-\n]+(?:Added|已添加)\s*([^\n]+)/i);
-    if (totpAddedMatch) {
+  const totpMatch = clean.match(/(?:Authenticator|身份验证器)[\s:\-\n]+([^\n]+)/i);
+  if (totpMatch) {
+    const val = totpMatch[1].toLowerCase();
+    if (/not added|未添加|off|关闭|未开启/.test(val)) {
+      res.totp_status = "关闭";
+      res.totp_added_at = null;
+    } else if (/added|添加|已添加|启用|\d+月\d+日/.test(val)) {
       res.totp_status = "开启";
-      res.totp_added_at = totpAddedMatch[1].trim();
-    } else if (clean.includes("Authenticator") || clean.includes("身份验证器")) {
-      res.totp_status = "开启";
+      const dateM = totpMatch[1].match(/(?:添加时间[：:]|已添加[：:]?|Added\s*)([^\n]+)/);
+      if (dateM) {
+        res.totp_added_at = dateM[1].trim();
+      } else {
+        const d = totpMatch[1].match(/(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2})/);
+        if (d) res.totp_added_at = d[1].trim();
+      }
     }
+  } else if (clean.includes("Authenticator") || clean.includes("身份验证器")) {
+    res.totp_status = "开启";
   }
 
   // Backup codes
-  const backupMatch = clean.match(/(?:Backup codes|备用验证码|备用代码)[\s:\-\n]+(\d+)\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining)/i);
+  const backupMatch = clean.match(/(?:Backup codes|备用验证码|备用代码)[\s:\-\n]+(\d+)\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining|个可用的验证码)/i);
   if (backupMatch) {
     res.backup_codes_status = "开启";
     res.backup_codes_remaining = parseInt(backupMatch[1], 10);
   } else if (clean.includes("Backup codes") || clean.includes("备用验证码")) {
     res.backup_codes_status = "开启";
-    const countMatch = clean.match(/(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining)/i);
+    const countMatch = clean.match(/(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)/i);
     res.backup_codes_remaining = countMatch ? parseInt(countMatch[1], 10) : 10;
   }
 
   // Membership / Subscription
-  if (/AI\s*Ultra/i.test(clean)) {
+  const compact = clean.replace(/\s+/g, " ");
+  if (/AI\s*Ultra/i.test(compact)) {
     res.membership_plan = "AI Ultra";
     res.membership_status = "有效";
-  } else if (/Google\s*AI[\s\n]+Pro|AI\s*Pro/i.test(clean)) {
+  } else if (/Google\s*AI\s*Pro|AI\s*Pro/i.test(compact)) {
     res.membership_plan = "AI Pro";
     res.membership_status = "有效";
-  } else if (/AI\s*Plus|AI\s*Premium/i.test(clean)) {
+  } else if (/AI\s*Plus|AI\s*Premium/i.test(compact)) {
     res.membership_plan = "AI Plus";
     res.membership_status = "有效";
-  } else if (/Current plan|当前套餐|当前方案/i.test(clean)) {
+  } else if (/Current plan|当前套餐|当前方案/i.test(compact)) {
     res.membership_status = "有效";
-    if (/Pro/i.test(clean)) res.membership_plan = "AI Pro";
-    else if (/Ultra/i.test(clean)) res.membership_plan = "AI Ultra";
-    else if (/Plus|Premium/i.test(clean)) res.membership_plan = "AI Plus";
+    if (/Pro/i.test(compact)) res.membership_plan = "AI Pro";
+    else if (/Ultra/i.test(compact)) res.membership_plan = "AI Ultra";
+    else if (/Plus|Premium/i.test(compact)) res.membership_plan = "AI Plus";
+    else if (/2\s*TB|5\s*TB/i.test(compact)) res.membership_plan = "AI Pro";
     else res.membership_plan = "其他";
-  } else if (/Upgrade to Google One|升级到 Google One/i.test(clean)) {
+  } else if (/Google One\s*会员/i.test(compact)) {
+    res.membership_status = "有效";
+    if (/Pro/i.test(compact)) res.membership_plan = "AI Pro";
+    else if (/Ultra/i.test(compact)) res.membership_plan = "AI Ultra";
+    else res.membership_plan = "AI Pro";
+  } else if (/Upgrade to Google One|升级到 Google One/i.test(compact) && !/当前方案|当前套餐|成为会员|AI\s*Pro/i.test(compact)) {
     res.membership_status = "未开通";
     res.membership_plan = "免费";
   }
@@ -248,16 +275,18 @@ export function AutoConfigModal({
     const text = (document.body ? document.body.innerText : '').replace(/\\r\\n/g, '\\n');
     let recPhone = '';
     let twoFaPhone = '';
-    const recPhoneMatch = text.match(/(?:Recovery phone|辅助电话|恢复电话|密保手机)[\\s:\\-\\n]+([+0-9\\s-]{6,20})/i);
-    if (recPhoneMatch) recPhone = recPhoneMatch[1].trim();
-    const twoFaPhoneMatch = text.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机)[\\s:\\-\\n]+([+0-9\\s-]{6,20})/i);
+    const recPhoneMatch = text.match(/(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机)[\\s:\\-\\n]+([^\\n]+)/i);
+    if (recPhoneMatch) {
+      const val = recPhoneMatch[1].trim();
+      if (!/添加手机号码|添加电话号码|Add a phone|Add phone/i.test(val)) {
+        const m = val.match(/([+0-9\\s-]{6,20})/);
+        if (m) recPhone = m[1].trim();
+      }
+    }
+    const twoFaPhoneMatch = text.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机|用于进行两步验证的电话号码)[\\s:\\-\\n]+([+0-9\\s-]{6,20})/i);
     if (twoFaPhoneMatch) twoFaPhone = twoFaPhoneMatch[1].trim();
     if (!recPhone && twoFaPhone) recPhone = twoFaPhone;
     if (!twoFaPhone && recPhone) twoFaPhone = recPhone;
-    if (!recPhone) {
-      const generalPhone = text.match(/(?:^|\\n)\\s*([1-9]\\d{2}[\\s-]?\\d{4}[\\s-]?\\d{4})\\s*(?:$|\\n)/);
-      if (generalPhone) { recPhone = generalPhone[1].trim(); twoFaPhone = recPhone; }
-    }
     let recEmail = '';
     const recEmailMatch = text.match(/(?:Recovery email|辅助邮箱|恢复邮箱)[\\s:\\-\\n]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})/i);
     if (recEmailMatch) {
@@ -268,36 +297,58 @@ export function AutoConfigModal({
       if (valid.length > 0) recEmail = valid[0].trim();
     }
     let twoFactor = "开启";
-    const twoFaMatch = text.match(/(?:2-Step Verification|两步验证)[\\s:\\-\\n]+(On|Off|开启|关闭|已开启|未开启)/i);
+    const twoFaMatch = text.match(/(?:2-Step Verification|两步验证)[\\s:\\-\\n]+([^\\n]+)/i);
     if (twoFaMatch) {
       const val = twoFaMatch[1].toLowerCase();
-      twoFactor = (val === 'off' || val === '关闭' || val === '未开启') ? "关闭" : "开启";
+      if (/off|关闭|未开启|未启用|停用/.test(val)) {
+        twoFactor = "关闭";
+      } else if (/on|开启|已开启|启用|已启用|启用时间|turned on|\\d+月\\d+日|\\d{4}/.test(val)) {
+        twoFactor = "开启";
+      }
     }
     let skipPwd = "开启";
-    const skipPwdMatch = text.match(/(?:Skip password when possible|尽可能跳过密码)[\\s:\\-\\n]+(On|Off|开启|关闭|已开启|未开启)/i);
+    const skipPwdMatch = text.match(/(?:Skip password when possible|尽可能跳过密码)[\\s:\\-\\n]+([^\\n]+)/i);
     if (skipPwdMatch) {
       const val = skipPwdMatch[1].toLowerCase();
-      skipPwd = (val === 'off' || val === '关闭' || val === '未开启') ? "关闭" : "开启";
+      skipPwd = /off|关闭|未开启|未启用/.test(val) ? "关闭" : "开启";
     }
     let totp = "开启";
-    const totpMatch = text.match(/(?:Authenticator|身份验证器)[\\s:\\-\\n]+(Added[^\\n]+|已添加[^\\n]+|Not added|未添加|Off|关闭)/i);
+    let totpAddedAt = null;
+    const totpMatch = text.match(/(?:Authenticator|身份验证器)[\\s:\\-\\n]+([^\\n]+)/i);
     if (totpMatch) {
       const val = totpMatch[1].toLowerCase();
-      totp = (val.includes('not') || val.includes('未') || val.includes('off') || val.includes('关闭')) ? "关闭" : "开启";
+      if (/not added|未添加|off|关闭|未开启/.test(val)) {
+        totp = "关闭";
+      } else if (/added|添加|已添加|启用|\\d+月\\d+日/.test(val)) {
+        totp = "开启";
+        const dateM = totpMatch[1].match(/(?:添加时间[：:]|已添加[：:]?|Added\\s*)([^\\n]+)/);
+        if (dateM) totpAddedAt = dateM[1].trim();
+      }
     }
     let backupRemain = 10;
-    const backupMatch = text.match(/(?:Backup codes|备用验证码|备用代码)[\\s:\\-\\n]+(\\d+)\\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining)/i);
+    const backupMatch = text.match(/(?:Backup codes|备用验证码|备用代码)[\\s:\\-\\n]+(\\d+)\\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining|个可用的验证码)/i);
     if (backupMatch) {
       backupRemain = parseInt(backupMatch[1], 10);
     } else {
-      const countMatch = text.match(/(\\d+)\\s*(?:codes available|个可用|剩余|条剩余|remaining)/i);
+      const countMatch = text.match(/(\\d+)\\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)/i);
       if (countMatch) backupRemain = parseInt(countMatch[1], 10);
     }
+    let mStatus = "未开通";
+    let mPlan = "未填写";
+    let mDate = null;
+    const compactText = text.replace(/\\s+/g, " ");
+    if (/AI\\s*Ultra/i.test(compactText)) { mPlan = "AI Ultra"; mStatus = "有效"; }
+    else if (/Google\\s*AI\\s*Pro|AI\\s*Pro/i.test(compactText)) { mPlan = "AI Pro"; mStatus = "有效"; }
+    else if (/AI\\s*Plus|AI\\s*Premium/i.test(compactText)) { mPlan = "AI Plus"; mStatus = "有效"; }
+    else if (/Google One\\s*会员/i.test(compactText)) { mStatus = "有效"; mPlan = "AI Pro"; }
+    const dateM = compactText.match(/(?:自|于|从|since)?\\s*(\\d{4})\\s*年\\s*(\\d{1,2})\\s*月\\s*(\\d{1,2})\\s*日/);
+    if (dateM) mDate = dateM[1] + "-" + dateM[2].padStart(2, "0") + "-" + dateM[3].padStart(2, "0");
     const res = {
       two_factor_status: twoFactor,
       two_factor_phone: twoFaPhone || null,
       skip_password_status: skipPwd,
       totp_status: totp,
+      totp_added_at: totpAddedAt,
       has_recovery_phone: recPhone ? "有" : "无",
       recovery_phone: recPhone || null,
       recovery_phone_verified: recPhone ? "已验证" : "未填写",
@@ -306,6 +357,9 @@ export function AutoConfigModal({
       recovery_email_verified: recEmail ? "已验证" : "未填写",
       backup_codes_status: "开启",
       backup_codes_remaining: backupRemain,
+      membership_status: mStatus,
+      membership_plan: mPlan,
+      membership_start_date: mDate,
       raw_source: "Chrome 页面实时提取",
       extracted_at: new Date().toISOString()
     };
@@ -718,8 +772,15 @@ export function AutoConfigModal({
                       {currentRecovery.recoveryPhone || currentRecovery.hasRecoveryPhone}
                     </span>
                     <span>→</span>
-                    <span className="font-medium text-foreground bg-teal-500/10 text-teal-600 dark:text-teal-400 px-2 py-0.5 rounded text-[11px]">
-                      {scrapedData.recovery_phone || scrapedData.two_factor_phone || "已开启"} ({scrapedData.recovery_phone_verified || "已验证"})
+                    <span className={cn(
+                      "font-medium px-2 py-0.5 rounded text-[11px]",
+                      scrapedData.has_recovery_phone === "有" && (scrapedData.recovery_phone || scrapedData.two_factor_phone)
+                        ? "bg-teal-500/10 text-teal-600 dark:text-teal-400"
+                        : "bg-muted text-muted-foreground"
+                    )}>
+                      {scrapedData.has_recovery_phone === "有" && (scrapedData.recovery_phone || scrapedData.two_factor_phone)
+                        ? `${scrapedData.recovery_phone || scrapedData.two_factor_phone} (${scrapedData.recovery_phone_verified || "已验证"})`
+                        : "无"}
                     </span>
                   </div>
                 </div>

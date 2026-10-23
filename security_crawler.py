@@ -72,41 +72,52 @@ def parse_membership(text):
             if m3:
                 start_date = f"{m3.group(1)}-{int(m3.group(2)):02d}-{int(m3.group(3)):02d}"
 
+    # Normalize whitespace for multi-line and flex matching
+    compact = re.sub(r'\s+', ' ', text)
+
     # Plan detection
-    if re.search(r'AI\s*Ultra', text, re.I):
+    if re.search(r'AI\s*Ultra', compact, re.I):
         plan = 'AI Ultra'
         status = '有效'
-    elif re.search(r'Google\s*AI[\s\n]+Pro|AI\s*Pro', text, re.I):
+    elif re.search(r'Google\s*AI\s*Pro|AI\s*Pro', compact, re.I):
         plan = 'AI Pro'
         status = '有效'
-    elif re.search(r'AI\s*Plus|AI\s*Premium', text, re.I):
+    elif re.search(r'AI\s*Plus|AI\s*Premium', compact, re.I):
         plan = 'AI Plus'
         status = '有效'
-    elif re.search(r'Current plan|当前套餐|当前方案|Member benefits|会员福利', text, re.I) and (start_date or re.search(r'TB|GB', text)):
+    elif re.search(r'Current plan|当前套餐|当前方案|Member benefits|会员福利', compact, re.I) and (start_date or re.search(r'TB|GB', compact)):
         status = '有效'
-        if re.search(r'Pro', text, re.I):
+        if re.search(r'Pro', compact, re.I):
             plan = 'AI Pro'
-        elif re.search(r'Ultra', text, re.I):
+        elif re.search(r'Ultra', compact, re.I):
             plan = 'AI Ultra'
-        elif re.search(r'Plus|Premium', text, re.I):
+        elif re.search(r'Plus|Premium', compact, re.I):
             plan = 'AI Plus'
-        elif re.search(r'2\s*TB', text, re.I):
+        elif re.search(r'2\s*TB|5\s*TB', compact, re.I):
             plan = 'AI Pro'
         else:
             plan = '其他'
-    elif re.search(r'Upgrade to Google One|升级到 Google One|加入 Google One|Get Google One', text, re.I):
+    elif re.search(r'Google One\s*会员', compact):
+        status = '有效'
+        if re.search(r'Pro', compact, re.I):
+            plan = 'AI Pro'
+        elif re.search(r'Ultra', compact, re.I):
+            plan = 'AI Ultra'
+        else:
+            plan = 'AI Pro'
+    elif re.search(r'Upgrade to Google One|升级到 Google One|加入 Google One|Get Google One', compact, re.I) and not re.search(r'当前方案|当前套餐|成为会员|AI\s*Pro', compact):
         status = '未开通'
         plan = '免费'
-    elif re.search(r'15\s*GB\s*(?:of\s*free\s*storage|免费存储空间)', text, re.I):
+    elif re.search(r'15\s*GB\s*(?:of\s*free\s*storage|免费存储空间)', compact, re.I) and not re.search(r'当前方案|当前套餐|成为会员|AI\s*Pro', compact):
         status = '未开通'
         plan = '免费'
 
     # Status modifiers
-    if re.search(r'trial|试用', text, re.I):
+    if re.search(r'trial|试用', compact, re.I):
         status = '试用'
-    elif re.search(r'cancelled|canceled|已取消', text, re.I):
+    elif re.search(r'cancelled|canceled|已取消', compact, re.I):
         status = '已取消但仍有效'
-    elif re.search(r'expired|已到期', text, re.I):
+    elif re.search(r'expired|已到期', compact, re.I):
         status = '已到期'
 
     return status, plan, start_date
@@ -186,27 +197,34 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
             text = page.locator('body').inner_text()
 
             # Scrape Google One / Gemini membership
-            membership_status = "未开通"
-            membership_plan = "未填写"
-            membership_start_date = None
+            # Baseline detection directly from security page (sidebar shows 'Google AI Pro 方案' and avatar has 'Google One 会员')
+            sec_m_status, sec_m_plan, sec_m_date = parse_membership(text)
+            membership_status = sec_m_status
+            membership_plan = sec_m_plan
+            membership_start_date = sec_m_date
+
             try:
-                page.goto('https://one.google.com/', timeout=18000)
+                page.goto('https://one.google.com/', timeout=22000)
                 page.wait_for_timeout(2500)
                 one_text = page.locator('body').inner_text()
-                membership_status, membership_plan, membership_start_date = parse_membership(one_text)
-                
-                # If one.google.com did not yield a plan, fallback check payments-and-subscriptions
-                if membership_status == '未开通' and membership_plan == '未填写':
+                sub_st, sub_pl, sub_dt = parse_membership(one_text)
+                if sub_st != '未开通' or sub_pl != '未填写':
+                    membership_status = sub_st
+                    membership_plan = sub_pl
+                    if sub_dt:
+                        membership_start_date = sub_dt
+                elif membership_status == '未开通' and membership_plan == '未填写':
+                    # Fallback check payments-and-subscriptions
                     try:
                         page.goto('https://myaccount.google.com/payments-and-subscriptions', timeout=15000)
                         page.wait_for_timeout(2000)
                         pay_text = page.locator('body').inner_text()
-                        sub_st, sub_pl, sub_dt = parse_membership(pay_text)
-                        if sub_st != '未开通' or sub_pl != '未填写':
-                            membership_status = sub_st
-                            membership_plan = sub_pl
-                            if sub_dt:
-                                membership_start_date = sub_dt
+                        p_st, p_pl, p_dt = parse_membership(pay_text)
+                        if p_st != '未开通' or p_pl != '未填写':
+                            membership_status = p_st
+                            membership_plan = p_pl
+                            if p_dt:
+                                membership_start_date = p_dt
                     except Exception:
                         pass
             except Exception:
@@ -246,44 +264,51 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
             # Robust semantic extraction
             for i, line in enumerate(lines):
                 # 1. 2-Step Verification
-                if re.match(r'^(?:2-Step Verification|两步验证)$', line, re.I):
+                if re.search(r'^(?:2-Step Verification|两步验证)$', line, re.I):
                     if i + 1 < len(lines):
                         next_l = lines[i+1].lower()
-                        if 'is off' in next_l or '关闭' in next_l or '未开启' in next_l:
+                        if re.search(r'off|关闭|未开启|未启用|停用', next_l, re.I):
                             result['two_factor_status'] = '关闭'
-                        elif 'is on' in next_l or '开启' in next_l or '已开启' in next_l:
+                        elif re.search(r'on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}', next_l, re.I):
                             result['two_factor_status'] = '开启'
                             
                 # 2. Skip password when possible
                 if 'Skip password when possible' in line or '尽可能跳过密码' in line:
                     if i + 1 < len(lines):
                         next_l = lines[i+1].lower()
-                        result['skip_password_status'] = '关闭' if ('off' in next_l or '关闭' in next_l) else '开启'
+                        result['skip_password_status'] = '关闭' if re.search(r'off|关闭|未开启|未启用', next_l, re.I) else '开启'
                         
                 # 3. Recovery phone
-                if re.match(r'^(?:Recovery phone|辅助电话|恢复电话|密保手机)$', line, re.I):
+                if re.search(r'^(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机)', line, re.I):
                     if i + 1 < len(lines):
                         val = lines[i+1]
-                        phone_m = re.search(r'([+0-9\s-]{6,20})', val)
-                        if phone_m:
-                            result['recovery_phone'] = phone_m.group(1).strip()
-                            result['has_recovery_phone'] = '有'
-                            result['recovery_phone_verified'] = '已验证'
+                        if re.search(r'添加手机号码|添加电话号码|Add a phone|Add phone', val, re.I):
+                            result['has_recovery_phone'] = '无'
+                            result['recovery_phone'] = None
+                            result['recovery_phone_verified'] = '未填写'
+                        else:
+                            phone_m = re.search(r'([+0-9\s-]{6,20})', val)
+                            if phone_m:
+                                result['recovery_phone'] = phone_m.group(1).strip()
+                                result['has_recovery_phone'] = '有'
+                                result['recovery_phone_verified'] = '已验证'
+                            else:
+                                result['has_recovery_phone'] = '无'
+                                result['recovery_phone'] = None
                             
                 # 4. 2-Step Verification phone
-                if re.match(r'^(?:2-Step Verification phone|两步验证电话|两步验证手机)$', line, re.I):
+                if re.search(r'^(?:2-Step Verification phone|两步验证电话|两步验证手机|用于进行两步验证的电话号码)', line, re.I):
                     if i + 1 < len(lines):
                         val = lines[i+1]
                         phone_m = re.search(r'([+0-9\s-]{6,20})', val)
                         if phone_m:
                             result['two_factor_phone'] = phone_m.group(1).strip()
-                            if not result['recovery_phone']:
+                            if not result['recovery_phone'] and result['has_recovery_phone'] == '有':
                                 result['recovery_phone'] = result['two_factor_phone']
-                                result['has_recovery_phone'] = '有'
                                 result['recovery_phone_verified'] = '已验证'
                                 
                 # 5. Recovery email
-                if re.match(r'^(?:Recovery email|辅助邮箱|恢复邮箱)$', line, re.I):
+                if re.search(r'^(?:Recovery email|辅助邮箱|恢复邮箱)', line, re.I):
                     if i + 1 < len(lines):
                         val = lines[i+1]
                         email_m = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', val)
@@ -293,32 +318,32 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
                             result['recovery_email_verified'] = '已验证'
                             
                 # 6. Authenticator
-                if re.match(r'^(?:Authenticator|身份验证器)$', line, re.I):
+                if re.search(r'^(?:Authenticator|身份验证器)$', line, re.I):
                     if i + 1 < len(lines):
                         next_raw = lines[i+1]
                         val = next_raw.lower()
-                        if 'not added' in val or '未添加' in val or 'off' in val or '关闭' in val:
+                        if re.search(r'not added|未添加|off|关闭|未开启', val, re.I):
                             result['totp_status'] = '关闭'
                             result['totp_added_at'] = None
-                        elif 'added' in val or '已添加' in val:
+                        elif re.search(r'added|添加|已添加|启用|\d+月\d+日', val, re.I):
                             result['totp_status'] = '开启'
-                            m_en = re.search(r'Added\s+([A-Za-z0-9\s,]+)', next_raw, re.I)
-                            if m_en:
-                                result['totp_added_at'] = m_en.group(1).strip()
+                            m_date = re.search(r'(?:添加时间[：:]|已添加[：:]?|Added\s*)([^\n]+)', next_raw)
+                            if m_date:
+                                result['totp_added_at'] = m_date.group(1).strip()
                             else:
-                                m_cn = re.search(r'已添加\s*([0-9\s年月]+日?)', next_raw)
-                                if m_cn and m_cn.group(1).strip():
+                                m_cn = re.search(r'(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2})', next_raw)
+                                if m_cn:
                                     result['totp_added_at'] = m_cn.group(1).strip()
                                 else:
-                                    clean_date = next_raw.replace('Added', '').replace('已添加', '').strip()
+                                    clean_date = next_raw.replace('Added', '').replace('已添加', '').replace('添加时间', '').replace('：', '').replace(':', '').strip()
                                     result['totp_added_at'] = clean_date if clean_date else None
                             
                 # 7. Backup codes
-                if 'Backup codes' in line or '备用验证码' in line or '备用代码' in line:
+                if re.search(r'Backup codes|备用验证码|备用代码', line, re.I):
                     result['backup_codes_status'] = '开启'
-                    rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining)', line, re.I)
+                    rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', line, re.I)
                     if not rem and i + 1 < len(lines):
-                        rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining)', lines[i+1], re.I)
+                        rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', lines[i+1], re.I)
                     if rem:
                         result['backup_codes_remaining'] = int(rem.group(1))
                     else:
