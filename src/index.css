@@ -283,10 +283,37 @@ button:focus-visible, a:focus-visible {
 
   /* Google AI 生态导航栏自适应折叠：空间压缩或桌面程序缩放时，自动折叠为纯 Logo 图标按钮 */
   .nav-ecosystem-bar {
+    width: 100%;
     container-type: inline-size;
   }
-  @container (max-width: 760px) {
+  
+  /* 常态：各按钮等宽统一规范，充满整栏保持一致 */
+  .nav-ecosystem-btn {
+    flex: 1 1 0px;
+    min-width: 0;
+    height: 2rem;
+    padding: 0 0.5rem;
+    justify-content: center;
+    white-space: nowrap;
+    transition: all 150ms ease-out;
+  }
+
+  /* 当折叠状态生效，或容器宽度小于 820px 时，自动折叠为纯 Logo 图标按钮 */
+  .nav-ecosystem-bar.is-collapsed .nav-ecosystem-btn {
+    flex: 0 0 2rem !important;
+    width: 2rem !important;
+    height: 2rem !important;
+    padding: 0 !important;
+    justify-content: center !important;
+  }
+  .nav-ecosystem-bar.is-collapsed .nav-btn-label,
+  .nav-ecosystem-bar.is-collapsed .nav-btn-ext {
+    display: none !important;
+  }
+
+  @container (max-width: 820px) {
     .nav-ecosystem-btn {
+      flex: 0 0 2rem !important;
       width: 2rem !important;
       height: 2rem !important;
       padding: 0 !important;
@@ -297,8 +324,9 @@ button:focus-visible, a:focus-visible {
       display: none !important;
     }
   }
-  @media (max-width: 900px) {
+  @media (max-width: 960px) {
     .nav-ecosystem-btn {
+      flex: 0 0 2rem !important;
       width: 2rem !important;
       height: 2rem !important;
       padding: 0 !important;

@@ -180,6 +180,41 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
       scrollRef.current?.scrollTo({ top: 0, behavior: "instant" });
     };
 
+    // Google AI 生态导航栏等宽与自适应折叠监测
+    const navBarRef = useRef<HTMLDivElement>(null);
+    const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+
+    useEffect(() => {
+      const el = navBarRef.current;
+      if (!el) return;
+
+      const checkWidth = () => {
+        // 5 个按钮等宽排布下，文字不换行所需最小安全宽度约 820px
+        const width = el.clientWidth;
+        if (width > 0) {
+          setIsNavCollapsed(width < 820);
+        }
+      };
+
+      checkWidth();
+
+      if (typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const width = entry.contentRect.width;
+            if (width > 0) {
+              setIsNavCollapsed(width < 820);
+            }
+          }
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+      } else {
+        window.addEventListener("resize", checkWidth);
+        return () => window.removeEventListener("resize", checkWidth);
+      }
+    }, [activeTab]);
+
     // 1. Account Info Section State
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState<boolean>(false);
@@ -1298,8 +1333,13 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
             </div>
 
             <div role="tabpanel" id="detail-panel-membership" aria-labelledby="detail-tab-membership" hidden={activeTab !== "membership"} tabIndex={0} className="detail-panel">
-              {/* Google AI 生态导航栏：官网直达 + Gemini notebook + Google Flow + colab + jules */}
-              <div className="nav-ecosystem-bar mb-5 pb-3 border-b border-border-subtle flex items-center gap-2 flex-nowrap overflow-x-auto no-scrollbar">
+              {/* Google AI 生态导航栏：各按钮等宽统一保持一致，缩放/空间受限时自适应折叠为纯 Logo */}
+              <div
+                ref={navBarRef}
+                className={`nav-ecosystem-bar mb-5 pb-3 border-b border-border-subtle flex items-center gap-2 ${
+                  isNavCollapsed ? "is-collapsed" : ""
+                }`}
+              >
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -1309,7 +1349,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       size="sm"
                       disabled={isLaunchingGemini}
                       onClick={handleLaunchGemini}
-                      className="nav-ecosystem-btn h-8 px-3 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
+                      className="nav-ecosystem-btn h-8 px-2 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer whitespace-nowrap"
                       aria-label="直达 Gemini 官网 (https://gemini.google.com/)"
                     >
                       <GeminiLogoIcon className="w-3.5 h-3.5 shrink-0" />
@@ -1333,7 +1373,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenNavigationLink("https://notebook.google.com/notebook", "Gemini notebook")}
-                      className="nav-ecosystem-btn h-8 px-3 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
+                      className="nav-ecosystem-btn h-8 px-2 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer whitespace-nowrap"
                       aria-label="直达 Gemini notebook (https://notebook.google.com/notebook)"
                     >
                       <img src="/branding/nav/notebook.svg" alt="Gemini notebook" className="w-3.5 h-3.5 shrink-0" />
@@ -1357,7 +1397,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenNavigationLink("https://flow.google.com/", "Google Flow")}
-                      className="nav-ecosystem-btn h-8 px-3 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
+                      className="nav-ecosystem-btn h-8 px-2 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer whitespace-nowrap"
                       aria-label="直达 Google Flow (https://flow.google.com/)"
                     >
                       <img src="/branding/nav/flow.png" alt="Google Flow" className="w-3.5 h-3.5 dark:hidden shrink-0 object-contain" />
@@ -1382,7 +1422,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenNavigationLink("https://colab.research.google.com/", "colab")}
-                      className="nav-ecosystem-btn h-8 px-3 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
+                      className="nav-ecosystem-btn h-8 px-2 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer whitespace-nowrap"
                       aria-label="直达 colab (https://colab.research.google.com/)"
                     >
                       <img src="/branding/nav/colab.svg" alt="colab" className="w-3.5 h-3.5 shrink-0" />
@@ -1406,7 +1446,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenNavigationLink("https://jules.google/", "jules")}
-                      className="nav-ecosystem-btn h-8 px-3 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer shrink-0 whitespace-nowrap"
+                      className="nav-ecosystem-btn h-8 px-2 text-xs gap-1.5 font-normal border-border-subtle text-foreground hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150 active:scale-[0.98] cursor-pointer whitespace-nowrap"
                       aria-label="直达 jules (https://jules.google/)"
                     >
                       <img src="/branding/nav/jules.svg" alt="jules" className="w-3.5 h-3.5 shrink-0" />
