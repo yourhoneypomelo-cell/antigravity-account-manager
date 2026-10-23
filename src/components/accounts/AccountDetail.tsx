@@ -1112,13 +1112,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                           <Button
                             id="btn-direct-twosv"
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => handleDirectUrl("twosv", "两步验证设置")}
-                            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
                             aria-label="在绑定的 Chrome 中直达两步验证设置"
                           >
                             <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                            <span>前往设置</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -1138,13 +1137,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                           <Button
                             id="btn-direct-passwordoptional"
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => handleDirectUrl("passwordoptional", "尽可能跳过密码设置")}
-                            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
                             aria-label="在绑定的 Chrome 中直达尽可能跳过密码设置"
                           >
                             <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                            <span>前往设置</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -1182,13 +1180,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                           <Button
                             id="btn-direct-authenticator"
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => handleDirectUrl("authenticator", "身份验证器设置")}
-                            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
                             aria-label="在绑定的 Chrome 中直达身份验证器设置"
                           >
                             <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                            <span>前往设置</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -1251,13 +1248,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                           <Button
                             id="btn-direct-recovery-email"
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => handleDirectUrl("recoveryEmail", "辅助邮箱设置")}
-                            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
                             aria-label="在绑定的 Chrome 中直达辅助邮箱设置"
                           >
                             <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                            <span>前往设置</span>
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="right">
@@ -1292,13 +1288,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       <Button
                         id="btn-direct-backup-codes"
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={() => handleDirectUrl("backupCodes", "备用验证码设置")}
-                        className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-accent hover:border-control-hover hover:shadow-xs transition-all duration-150"
                         aria-label="在绑定的 Chrome 中直达备用验证码设置"
                       >
                         <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
-                        <span>前往设置</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="left">
