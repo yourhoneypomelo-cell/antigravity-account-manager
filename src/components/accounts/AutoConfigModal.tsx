@@ -57,6 +57,69 @@ interface AutoConfigModalProps {
   showToast: (msg: string, type?: "info" | "success" | "error") => void;
 }
 
+const MONTHS_MAP: Record<string, string> = {
+  // English
+  january: "01", jan: "01", february: "02", feb: "02", march: "03", mar: "03",
+  april: "04", apr: "04", may: "05", june: "06", jun: "06", july: "07", jul: "07",
+  august: "08", aug: "08", september: "09", sep: "09", sept: "09", october: "10", oct: "10",
+  november: "11", nov: "11", december: "12", dec: "12",
+  // Spanish & Portuguese
+  enero: "01", febrero: "02", marzo: "03", abril: "04", mayo: "05", junio: "06",
+  julio: "07", agosto: "08", septiembre: "09", setiembre: "09", octubre: "10", noviembre: "11", diciembre: "12",
+  janeiro: "01", fevereiro: "02", março: "03", marco: "03",
+  // French & German & Italian
+  janvier: "01", février: "02", fevrier: "02", mars: "03", mai: "05",
+  juin: "06", juillet: "07", août: "08", aout: "08", décembre: "12", decembre: "12",
+  januar: "01", februar: "02", märz: "03", maerz: "03", juli: "07", dezember: "12",
+  gennaio: "01", febbraio: "02", aprile: "04", maggio: "05", giugno: "06", luglio: "07", dicembre: "12",
+  // Russian
+  января: "01", февраля: "02", марта: "03", апреля: "04", мая: "05", июня: "06",
+  июля: "07", августа: "08", сентября: "09", октября: "10", ноября: "11", декабря: "12",
+  январь: "01", февраль: "02", март: "03", апрель: "04", май: "05", июнь: "06",
+  июль: "07", август: "08", сентябрь: "09", октябрь: "10", ноябрь: "11", декабрь: "12",
+};
+
+function parseMultilingualDate(text: string): string | null {
+  if (!text) return null;
+  // 1. Asian (YYYY年M月D日 or YYYY년 M월 D일)
+  const asianM = text.match(/(\d{4})\s*(?:年|년)\s*(\d{1,2})\s*(?:月|월)\s*(\d{1,2})\s*(?:日|일)/);
+  if (asianM) {
+    return `${asianM[1]}-${asianM[2].padStart(2, "0")}-${asianM[3].padStart(2, "0")}`;
+  }
+
+  // 2. Vietnamese (D tháng M, YYYY)
+  const vnM = text.match(/(\d{1,2})\s*tháng\s*(\d{1,2}),?\s*(\d{4})/i);
+  if (vnM) {
+    return `${vnM[3]}-${vnM[2].padStart(2, "0")}-${vnM[1].padStart(2, "0")}`;
+  }
+
+  // 3. Day Month Year (e.g. 2 September 2026, 2 de septiembre de 2026, 2 septembre 2026, 2. September 2026, 2 сентября 2026)
+  const dmyM = text.match(/(\d{1,2})[.\s]+(?:de\s+)?([A-Za-z\u00C0-\u017F\u0400-\u04FF]+)[,\s]+(?:de\s+|d'\s*)?(\d{4})/);
+  if (dmyM) {
+    const d = dmyM[1].padStart(2, "0");
+    const mStr = dmyM[2].toLowerCase();
+    const y = dmyM[3];
+    if (MONTHS_MAP[mStr]) return `${y}-${MONTHS_MAP[mStr]}-${d}`;
+  }
+
+  // 4. Month Day Year (e.g. September 2, 2026)
+  const mdyM = text.match(/([A-Za-z\u00C0-\u017F\u0400-\u04FF]+)\s+(\d{1,2}),?\s+(\d{4})/);
+  if (mdyM) {
+    const mStr = mdyM[1].toLowerCase();
+    const d = mdyM[2].padStart(2, "0");
+    const y = mdyM[3];
+    if (MONTHS_MAP[mStr]) return `${y}-${MONTHS_MAP[mStr]}-${d}`;
+  }
+
+  // 5. ISO / YYYY-MM-DD
+  const isoM = text.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (isoM) {
+    return `${isoM[1]}-${isoM[2].padStart(2, "0")}-${isoM[3].padStart(2, "0")}`;
+  }
+
+  return null;
+}
+
 // Concise parser for Google Security page
 export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   if (!raw || !raw.trim()) return null;
@@ -77,11 +140,18 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
 
   const res: ScrapedSecurityData = {};
 
+  // 1. Check "Add more options" section
+  const inAddMoreSection = /(?:您还可以添加其他登录选项|您可以新增其他登入選項|其他登录选项|You can add more sign-in options|Add more second steps|Other ways to sign in|Bạn có thể thêm các tuỳ chọn đăng nhập khác|Puedes añadir otras opciones para iniciar sesión|Você pode adicionar outras opções de login|Другие способы входа|その他のログイン方法を追加できます|다른 로그인 옵션을 추가할 수 있습니다|Vous pouvez ajouter d'autres options de connexion|Sie können weitere Anmeldeoptionen hinzufügen)/i.test(clean);
+
+  // Status on / off patterns
+  const isOffPattern = /off|disabled|turned off|inactive|not added|not set|关闭|未开启|未启用|停用|未添加|未设置|无|desactivad|não adicionad|não configurad|отключ|выкл|не добав|не настроен|無効|オフ|設定されていません|未設定|追加されていません|사용 안함|사용 안 함|사용 중지|꺼짐|추가되지 않음|설정되지 않음|désactivé|non configuré|non ajouté|deaktiviert|aus|nicht hinzugefügt|nicht eingerichtet|tắt|chưa bật|chưa thêm|chưa thiết lập|nonaktif|dinonaktifkan|belum ditambahkan|kapalı|devre dışı|disattiv/i;
+  const isOnPattern = /on|enabled|turned on|active|added|verified|开启|已开启|启用|已启用|已添加|已验证|有效|启用时间|添加时间|activad|agregad|verificad|ativad|adicionad|включен|вкл|добавлен|подтвержден|有効|オン|設定済み|追加日|追加済み|確認済み|사용 중|설정됨|사용|추가됨|인증됨|activé|ajouté|validé|aktiviert|ein|hinzugefügt|bestätigt|bật|đang bật|bật từ|đã thêm|đã xác minh|aktif|diaktifkan|ditambahkan|terverifikasi|açık|etkin|eklendi|doğrulandı|attiv|aggiunt|verificat/i;
+
   // Recovery Phone & 2-Step Verification Phones
-  const recPhoneMatch = clean.match(/(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机|Số điện thoại khôi phục)[\s:\n-]+([^\n]+)/i);
+  const recPhoneMatch = clean.match(/(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机|備援電話|Số điện thoại khôi phục|Teléfono de recuperación|Teléfono de rescate|Telefone de recuperação|Резервный номер телефона|Резервный телефон|再設定用の電話番号|再設定用電話|복구 전화번호|Numéro de téléphone de récupération|Téléphone de récupération|Telefonnummer zur Kontowiederherstellung|Wiederherstellungstelefon|Nomor telepon pemulihan|Kurtarma telefon numarası|Numero di telefono di recupero)[\s:\n-]+([^\n]+)/i);
   if (recPhoneMatch) {
     const val = recPhoneMatch[1].trim();
-    if (/添加手机号码|添加电话号码|Add a phone|Add phone|Thêm số điện thoại/i.test(val)) {
+    if (/添加手机号码|添加电话号码|Add a phone|Add phone|Thêm số điện thoại|Añadir un teléfono|Adicionar telefone|Добавить номер|電話番号を追加|전화번호 추가|Ajouter un téléphone/i.test(val)) {
       res.has_recovery_phone = "无";
       res.recovery_phone = null;
       res.recovery_phone_verified = "未填写";
@@ -95,7 +165,7 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
     }
   }
 
-  const twoFaPhoneMatch = clean.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机|用于进行两步验证的电话号码|Số điện thoại dùng cho quy trình xác minh 2 bước)[\s:\n-]+([+0-9\s-]{6,20})/i);
+  const twoFaPhoneMatch = clean.match(/(?:2-Step Verification phone|两步验证电话|两步验证手机|兩步驟驗證電話|Số điện thoại dùng cho quy trình xác minh 2 bước|Teléfono para la verificación en dos pasos|Telefone para a verificação em duas etapas|Телефон для двухэтапной аутентификации|2 段階認証プロセスの電話番号|2단계 인증 전화번호|Téléphone pour la validation en deux étapes|Telefonnummer für die Bestätigung in zwei Schritten)[\s:\n-]+([+0-9\s-]{6,20})/i);
   if (twoFaPhoneMatch) {
     res.two_factor_phone = twoFaPhoneMatch[1].trim();
     if (!res.recovery_phone && res.has_recovery_phone === "有") {
@@ -114,7 +184,7 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   }
 
   // Recovery Email
-  const recEmailMatch = clean.match(/(?:Recovery email|辅助邮箱|恢复邮箱|Email khôi phục)[\s:\n-]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+  const recEmailMatch = clean.match(/(?:Recovery email|辅助邮箱|恢复邮箱|備援電子郵件|Email khôi phục|Correo electrónico de recuperación|Correo de recuperación|E-mail de recuperação|Резервный адрес электронной почты|Резервный адрес эл\. почты|Резервный email|再設定用のメールアドレス|再設定用メール|복구 이메일|Adresse e-mail de récupération|E-mail de récupération|E-Mail-Adresse zur Kontowiederherstellung|Wiederherstellungs-E-Mail|Email pemulihan|Kurtarma e-postası|Indirizzo email di recupero)[\s:\n-]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
   if (recEmailMatch) {
     res.recovery_email = recEmailMatch[1].trim();
     res.has_recovery_email = "有";
@@ -130,37 +200,37 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   }
 
   // 2-Step Verification
-  const twoFaMatch = clean.match(/(?:2-Step Verification|两步验证|Xác minh 2 bước)[\s:\n-]+([^\n]+)/i);
+  const twoFaMatch = clean.match(/(?:2-Step Verification|Two-step verification|两步验证|兩步驟驗證|Xác minh 2 bước|Verificación en dos pasos|Verificación en 2 pasos|Verificação em duas etapas|Двухэтапная аутентификация|2\s*段階認証プロセス|2단계 인증|Validation en deux étapes|Bestätigung in zwei Schritten|Verifikasi 2 Langkah|2 Adımlı Doğrulama|Verifica in due passaggi)[\s:\n-]+([^\n]+)/i);
   if (twoFaMatch) {
     const val = twoFaMatch[1].toLowerCase();
-    if (/off|关闭|未开启|未启用|停用|tắt|chưa bật/.test(val)) {
+    if (isOffPattern.test(val)) {
       res.two_factor_status = "关闭";
-    } else if (/on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}|bật|đang bật|bật từ/.test(val)) {
+    } else if (isOnPattern.test(val)) {
       res.two_factor_status = "开启";
     }
-  } else if (clean.includes("2-Step Verification") || clean.includes("两步验证") || clean.includes("Xác minh 2 bước")) {
+  } else if (/2-Step Verification|两步验证|Xác minh 2 bước|Verificación en dos pasos|Двухэтапная|2\s*段階認証|Validation en deux étapes|Bestätigung in zwei Schritten/i.test(clean)) {
     res.two_factor_status = "开启";
   }
 
   // Skip Password
-  const skipPwdMatch = clean.match(/(?:Skip password when possible|尽可能跳过密码|Bỏ qua mật khẩu khi có thể)[\s:\n-]+([^\n]+)/i);
+  const skipPwdMatch = clean.match(/(?:Skip password when possible|尽可能跳过密码|盡可能略過密碼|Bỏ qua mật khẩu khi có thể|Omitir contraseña cuando sea posible|Pular senha sempre que possível|Пропускать ввод пароля|可能な場合はパスワードを省略|가능하면 비밀번호 건너뛰기|Ignorer le mot de passe si possible|Passwörter nach Möglichkeit überspringen|Lewati sandi jika memungkinkan)[\s:\n-]+([^\n]+)/i);
   if (skipPwdMatch) {
     const val = skipPwdMatch[1].toLowerCase();
-    res.skip_password_status = /off|关闭|未开启|未启用|tắt/.test(val) ? "关闭" : "开启";
+    res.skip_password_status = isOffPattern.test(val) ? "关闭" : "开启";
   } else {
     res.skip_password_status = "开启";
   }
 
   // Authenticator
-  const totpMatch = clean.match(/(?:Authenticator|身份验证器)[\s:\n-]+([^\n]+)/i);
+  const totpMatch = clean.match(/(?:Authenticator|身份验证器|驗證器|Ứng dụng Authenticator|App del autenticador|Aplicación Authenticator|App Authenticator|Aplicativo Authenticator|Приложение Authenticator|認証システム|인증 앱|Application Authenticator|Authenticator-App|Aplikasi Authenticator)[\s:\n-]+([^\n]+)/i);
   if (totpMatch) {
     const val = totpMatch[1].toLowerCase();
-    if (/not added|未添加|off|关闭|未开启|chưa thêm|tắt/.test(val)) {
+    if (isOffPattern.test(val)) {
       res.totp_status = "关闭";
       res.totp_added_at = null;
-    } else if (/added|添加|已添加|启用|\d+月\d+日|đã thêm|bật/.test(val)) {
+    } else if (isOnPattern.test(val)) {
       res.totp_status = "开启";
-      const dateM = totpMatch[1].match(/(?:添加时间[：:]|已添加[：:]?|Added\s*|Đã thêm\s*)([^\n]+)/);
+      const dateM = totpMatch[1].match(/(?:添加时间[：:]|已添加[：:]?|Added\s*|Đã thêm\s*|Agregado el\s*|Añadido el\s*|Ajouté le\s*|Adicionado em\s*|Hinzugefügt am\s*|Добавлено[：:]?\s*|追加日[：:]?\s*|추가됨[：:]?\s*)([^\n]+)/i);
       if (dateM) {
         res.totp_added_at = dateM[1].trim();
       } else {
@@ -168,27 +238,38 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
         if (d) res.totp_added_at = d[1].trim();
       }
     }
-  } else if (clean.includes("Authenticator") || clean.includes("身份验证器")) {
+  } else if (/Authenticator|身份验证器|認証システム/i.test(clean)) {
     res.totp_status = "开启";
   }
 
   // Backup codes
-  const inAddMoreSection = /(?:Bạn có thể thêm các tuỳ chọn đăng nhập khác|您还可以添加其他登录选项|You can add more sign-in options|Add more second steps)[\s\S]*(?:Mã dự phòng|Backup codes|备用验证码)/i.test(clean);
-  const backupMatch = clean.match(/(?:Backup codes|备用验证码|备用代码|Mã dự phòng)[\s:\n-]+(\d+)\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining|个可用的验证码|mã có thể dùng|mã khả dụng)/i);
+  const backupMatch = clean.match(/(?:Backup codes|Backup code|备用验证码|备用代码|备用码|Mã dự phòng|Códigos de seguridad|Códigos de respaldo|Códigos de reserva|Códigos de backup|Резервные коды|Коды безопасности|バックアップ\s*コード|백업 코드|Codes de secours|Backup-Codes|Kode cadangan|Yedek kodlar|Codici di backup)[\s:\n-]+([^\n]+)/i);
+  const backupCountRegex = /(\d+)\s*(?:codes available|codes restants|codes disponibles|códigos disponibles|códigos restantes|códigos disponíveis|códigos de segurança restantes|доступных кодов|доступно|利用可能なコード|個の利用可能なコード|개 사용 가능|mã có thể dùng|mã khả dụng|kode tersedia|kullanılabilir kod|codici disponibili|个可用|剩余|条剩余|remaining)/i;
+
   if (backupMatch) {
-    res.backup_codes_status = "开启";
-    res.backup_codes_remaining = parseInt(backupMatch[1], 10);
+    const lineVal = backupMatch[1];
+    const countM = lineVal.match(backupCountRegex) || clean.match(backupCountRegex);
+    if (inAddMoreSection || isOffPattern.test(lineVal)) {
+      res.backup_codes_status = "关闭";
+      res.backup_codes_remaining = 0;
+    } else if (countM) {
+      res.backup_codes_status = "开启";
+      res.backup_codes_remaining = parseInt(countM[1], 10);
+    } else {
+      res.backup_codes_status = "开启";
+      res.backup_codes_remaining = 10;
+    }
   } else if (inAddMoreSection) {
     res.backup_codes_status = "关闭";
     res.backup_codes_remaining = 0;
-  } else if (clean.includes("Backup codes") || clean.includes("备用验证码") || clean.includes("Mã dự phòng")) {
-    if (/(?:Backup codes|备用验证码|Mã dự phòng)[\s:\n-]+(?:not set|chưa|未设置|关闭|off|chưa bật)/i.test(clean)) {
-      res.backup_codes_status = "关闭";
-      res.backup_codes_remaining = 0;
-    } else {
-      const countMatch = clean.match(/(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码|mã có thể dùng|mã khả dụng)/i);
+  } else if (/Backup codes|备用验证码|Mã dự phòng|Códigos de seguridad|Резервные коды|バックアップ\s*コード|Codes de secours/i.test(clean)) {
+    const countM = clean.match(backupCountRegex);
+    if (countM) {
       res.backup_codes_status = "开启";
-      res.backup_codes_remaining = countMatch ? parseInt(countMatch[1], 10) : 10;
+      res.backup_codes_remaining = parseInt(countM[1], 10);
+    } else {
+      res.backup_codes_status = "开启";
+      res.backup_codes_remaining = 10;
     }
   }
 
@@ -203,40 +284,25 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   } else if (/AI\s*Plus|AI\s*Premium/i.test(compact)) {
     res.membership_plan = "AI Plus";
     res.membership_status = "有效";
-  } else if (/Current plan|当前套餐|当前方案/i.test(compact)) {
+  } else if (/Current plan|当前套餐|当前方案|当前计划|Member benefits|会员福利|Gói hiện tại|Plan actual|Plano atual|Текущий план|Текущий тариф|現在のプラン|현재 요금제|Forfait actuel|Aktueller Tarif|Paket saat ini|Geçerli plan|Piano attuale|Bieżący abonament|Huidig abonnement/i.test(compact)) {
     res.membership_status = "有效";
-    if (/Pro/i.test(compact)) res.membership_plan = "AI Pro";
-    else if (/Ultra/i.test(compact)) res.membership_plan = "AI Ultra";
+    if (/Ultra/i.test(compact)) res.membership_plan = "AI Ultra";
+    else if (/Pro/i.test(compact) || /2\s*TB|5\s*TB/i.test(compact)) res.membership_plan = "AI Pro";
     else if (/Plus|Premium/i.test(compact)) res.membership_plan = "AI Plus";
-    else if (/2\s*TB|5\s*TB/i.test(compact)) res.membership_plan = "AI Pro";
-    else res.membership_plan = "其他";
-  } else if (/Google One\s*会员/i.test(compact)) {
-    res.membership_status = "有效";
-    if (/Pro/i.test(compact)) res.membership_plan = "AI Pro";
-    else if (/Ultra/i.test(compact)) res.membership_plan = "AI Ultra";
     else res.membership_plan = "AI Pro";
-  } else if (/Upgrade to Google One|升级到 Google One/i.test(compact) && !/当前方案|当前套餐|成为会员|AI\s*Pro/i.test(compact)) {
+  } else if (/Google One\s*(?:会员|Member|membro|miembro|участник|メンバー|회원|membre|Mitglied)/i.test(compact)) {
+    res.membership_status = "有效";
+    if (/Ultra/i.test(compact)) res.membership_plan = "AI Ultra";
+    else res.membership_plan = "AI Pro";
+  } else if (/Upgrade to Google One|升级到 Google One|加入 Google One|Get Google One/i.test(compact) && !/当前方案|当前套餐|成为会员|AI\s*Pro/i.test(compact)) {
     res.membership_status = "未开通";
     res.membership_plan = "免费";
   }
 
-  // Member date
-  const memberSinceMatch = clean.match(/Member since\s+([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i);
-  if (memberSinceMatch) {
-    const monthsMap: Record<string, string> = {
-      january: "01", jan: "01", february: "02", feb: "02", march: "03", mar: "03", april: "04", apr: "04",
-      may: "05", june: "06", jun: "06", july: "07", jul: "07", august: "08", aug: "08",
-      september: "09", sep: "09", sept: "09", october: "10", oct: "10", november: "11", nov: "11", december: "12", dec: "12"
-    };
-    const mStr = memberSinceMatch[1].toLowerCase();
-    const dStr = memberSinceMatch[2].padStart(2, "0");
-    const yStr = memberSinceMatch[3];
-    res.membership_start_date = `${yStr}-${monthsMap[mStr] || "01"}-${dStr}`;
-  } else {
-    const cnDateMatch = clean.match(/(?:自|于|从|since)?\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-    if (cnDateMatch) {
-      res.membership_start_date = `${cnDateMatch[1]}-${cnDateMatch[2].padStart(2, "0")}-${cnDateMatch[3].padStart(2, "0")}`;
-    }
+  // Multilingual Date Extraction
+  const dateResult = parseMultilingualDate(clean);
+  if (dateResult) {
+    res.membership_start_date = dateResult;
   }
 
   if (
