@@ -64,13 +64,20 @@ def parse_membership(text):
         mon = months.get(mon_str, '01')
         start_date = f"{yr}-{mon}-{day:02d}"
     else:
-        m2 = re.search(r'(?:自|于|从|since)?\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日', text)
-        if m2:
-            start_date = f"{m2.group(1)}-{int(m2.group(2)):02d}-{int(m2.group(3)):02d}"
+        m_vn = re.search(r'(?:kể từ|từ|since)?\s*(\d{1,2})\s*tháng\s*(\d{1,2}),?\s*(\d{4})', text, re.I)
+        if m_vn:
+            day = int(m_vn.group(1))
+            mon = int(m_vn.group(2))
+            yr = m_vn.group(3)
+            start_date = f"{yr}-{mon:02d}-{day:02d}"
         else:
-            m3 = re.search(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', text)
-            if m3:
-                start_date = f"{m3.group(1)}-{int(m3.group(2)):02d}-{int(m3.group(3)):02d}"
+            m2 = re.search(r'(?:自|于|从|since)?\s*(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日', text)
+            if m2:
+                start_date = f"{m2.group(1)}-{int(m2.group(2)):02d}-{int(m2.group(3)):02d}"
+            else:
+                m3 = re.search(r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})', text)
+                if m3:
+                    start_date = f"{m3.group(1)}-{int(m3.group(2)):02d}-{int(m3.group(3)):02d}"
 
     # Normalize whitespace for multi-line and flex matching
     compact = re.sub(r'\s+', ' ', text)
@@ -85,7 +92,7 @@ def parse_membership(text):
     elif re.search(r'AI\s*Plus|AI\s*Premium', compact, re.I):
         plan = 'AI Plus'
         status = '有效'
-    elif re.search(r'Current plan|当前套餐|当前方案|Member benefits|会员福利', compact, re.I) and (start_date or re.search(r'TB|GB', compact)):
+    elif re.search(r'Current plan|当前套餐|当前方案|Member benefits|会员福利|Gói hiện tại', compact, re.I) and (start_date or re.search(r'TB|GB', compact)):
         status = '有效'
         if re.search(r'Pro', compact, re.I):
             plan = 'AI Pro'
@@ -180,7 +187,11 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
             launch_kwargs = {
                 'user_data_dir': temp_dir,
                 'headless': True,
-                'args': args
+                'args': args,
+                'locale': 'zh-CN',
+                'extra_http_headers': {
+                    'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'
+                }
             }
             if executable_path and os.path.isfile(executable_path):
                 launch_kwargs['executable_path'] = executable_path
@@ -190,7 +201,7 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
             context = p.chromium.launch_persistent_context(**launch_kwargs)
             page = context.pages[0] if context.pages else context.new_page()
             
-            page.goto('https://myaccount.google.com/security', timeout=timeout_ms)
+            page.goto('https://myaccount.google.com/security?hl=zh-CN', timeout=timeout_ms)
             page.wait_for_timeout(3500)
             
             # Read full body text
@@ -204,7 +215,7 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
             membership_start_date = sec_m_date
 
             try:
-                page.goto('https://one.google.com/', timeout=22000)
+                page.goto('https://one.google.com/?hl=zh-CN', timeout=22000)
                 page.wait_for_timeout(2500)
                 one_text = page.locator('body').inner_text()
                 sub_st, sub_pl, sub_dt = parse_membership(one_text)
@@ -216,7 +227,7 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
                 elif membership_status == '未开通' and membership_plan == '未填写':
                     # Fallback check payments-and-subscriptions
                     try:
-                        page.goto('https://myaccount.google.com/payments-and-subscriptions', timeout=15000)
+                        page.goto('https://myaccount.google.com/payments-and-subscriptions?hl=zh-CN', timeout=15000)
                         page.wait_for_timeout(2000)
                         pay_text = page.locator('body').inner_text()
                         p_st, p_pl, p_dt = parse_membership(pay_text)
@@ -261,25 +272,31 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
                 'extracted_at': datetime.utcnow().isoformat() + 'Z'
             }
             
+            in_add_more_section = False
+
             # Robust semantic extraction
             for i, line in enumerate(lines):
+                # Detect secondary / "add more options" section
+                if re.search(r'Bạn có thể thêm các tuỳ chọn đăng nhập khác|您还可以添加其他登录选项|You can add more sign-in options|Add more second steps|Other ways to sign in', line, re.I):
+                    in_add_more_section = True
+
                 # 1. 2-Step Verification
-                if re.search(r'^(?:2-Step Verification|两步验证)$', line, re.I) or re.search(r'(?:两步验证|2-Step Verification)', line, re.I):
+                if re.search(r'^(?:2-Step Verification|两步验证|Xác minh 2 bước)$', line, re.I) or re.search(r'(?:两步验证|2-Step Verification|Xác minh 2 bước)', line, re.I):
                     lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
-                    if re.search(r'off|关闭|未开启|未启用|停用', lookahead, re.I):
+                    if re.search(r'off|关闭|未开启|未启用|停用|tắt|chưa bật', lookahead, re.I):
                         result['two_factor_status'] = '关闭'
-                    elif re.search(r'on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}|check_circle|done|verified', lookahead, re.I) or '启用时间' in line:
+                    elif re.search(r'on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}|check_circle|done|verified|bật|đang bật|bật từ', lookahead, re.I) or '启用时间' in line or 'Bật từ' in line:
                         result['two_factor_status'] = '开启'
                             
                 # 2. Skip password when possible
-                if 'Skip password when possible' in line or '尽可能跳过密码' in line:
+                if re.search(r'Skip password when possible|尽可能跳过密码|Bỏ qua mật khẩu khi có thể', line, re.I):
                     lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
-                    result['skip_password_status'] = '关闭' if re.search(r'off|关闭|未开启|未启用', lookahead, re.I) else '开启'
+                    result['skip_password_status'] = '关闭' if re.search(r'off|关闭|未开启|未启用|tắt', lookahead, re.I) else '开启'
                         
                 # 3. Recovery phone
-                if re.search(r'^(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机)', line, re.I):
+                if re.search(r'^(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机|Số điện thoại khôi phục)', line, re.I):
                     for next_val in lines[i+1:min(i+4, len(lines))]:
-                        if re.search(r'添加手机号码|添加电话号码|Add a phone|Add phone', next_val, re.I):
+                        if re.search(r'添加手机号码|添加电话号码|Add a phone|Add phone|Thêm số điện thoại', next_val, re.I):
                             result['has_recovery_phone'] = '无'
                             result['recovery_phone'] = None
                             result['recovery_phone_verified'] = '未填写'
@@ -293,7 +310,7 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
                                 break
                             
                 # 4. 2-Step Verification phone
-                if re.search(r'^(?:2-Step Verification phone|两步验证电话|两步验证手机|用于进行两步验证的电话号码)', line, re.I):
+                if re.search(r'^(?:2-Step Verification phone|两步验证电话|两步验证手机|用于进行两步验证的电话号码|Số điện thoại dùng cho quy trình xác minh 2 bước)', line, re.I):
                     for next_val in lines[i+1:min(i+4, len(lines))]:
                         phone_m = re.search(r'([+0-9\s-]{6,20})', next_val)
                         if phone_m and len(phone_m.group(1).replace(' ', '').replace('-', '')) >= 7:
@@ -304,7 +321,7 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
                             break
                                 
                 # 5. Recovery email
-                if re.search(r'^(?:Recovery email|辅助邮箱|恢复邮箱)', line, re.I):
+                if re.search(r'^(?:Recovery email|辅助邮箱|恢复邮箱|Email khôi phục)', line, re.I):
                     for next_val in lines[i+1:min(i+4, len(lines))]:
                         email_m = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', next_val)
                         if email_m:
@@ -316,35 +333,54 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
                 # 6. Authenticator
                 if re.search(r'^(?:Authenticator|身份验证器)$', line, re.I) or re.search(r'(?:身份验证器|Authenticator)', line, re.I):
                     lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
-                    if re.search(r'not added|未添加|off|关闭|未开启', lookahead, re.I):
+                    if re.search(r'not added|未添加|off|关闭|未开启|chưa thêm|tắt', lookahead, re.I):
                         result['totp_status'] = '关闭'
                         result['totp_added_at'] = None
-                    elif re.search(r'added|添加|已添加|启用|\d+月\d+日|添加时间', lookahead, re.I) or '添加时间' in line:
+                    elif re.search(r'added|添加|已添加|启用|\d+月\d+日|添加时间|đã thêm|bật', lookahead, re.I) or '添加时间' in line or 'Đã thêm' in line:
                         result['totp_status'] = '开启'
                         for next_raw in lines[i+1:min(i+4, len(lines))]:
-                            m_date = re.search(r'(?:添加时间[：:]|已添加[：:]?|Added\s*)([^\n]+)', next_raw)
+                            m_date = re.search(r'(?:添加时间[：:]|已添加[：:]?|Added\s*|Đã thêm\s*)([^\n]+)', next_raw)
                             if m_date:
                                 result['totp_added_at'] = m_date.group(1).strip()
                                 break
                             else:
-                                m_cn = re.search(r'(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2})', next_raw)
+                                m_cn = re.search(r'(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2}|\d{1,2}\s*thg\s*\d{1,2})', next_raw)
                                 if m_cn:
                                     result['totp_added_at'] = m_cn.group(1).strip()
                                     break
                             
                 # 7. Backup codes
-                if re.search(r'Backup codes|备用验证码|备用代码', line, re.I):
-                    result['backup_codes_status'] = '开启'
-                    rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', line, re.I)
-                    if not rem:
-                        for next_l in lines[i+1:min(i+4, len(lines))]:
-                            rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', next_l, re.I)
-                            if rem:
-                                break
-                    if rem:
-                        result['backup_codes_remaining'] = int(rem.group(1))
+                if re.search(r'Backup codes|备用验证码|备用代码|Mã dự phòng', line, re.I):
+                    if in_add_more_section:
+                        result['backup_codes_status'] = '关闭'
+                        result['backup_codes_remaining'] = 0
                     else:
-                        result['backup_codes_remaining'] = 10
+                        rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码|mã có thể dùng|mã khả dụng)', line, re.I)
+                        if not rem:
+                            for next_l in lines[i+1:min(i+4, len(lines))]:
+                                rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码|mã có thể dùng|mã khả dụng)', next_l, re.I)
+                                if rem:
+                                    break
+                        if rem:
+                            result['backup_codes_status'] = '开启'
+                            result['backup_codes_remaining'] = int(rem.group(1))
+                        else:
+                            lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
+                            if re.search(r'not set|chưa|未设置|关闭|off|chưa bật', lookahead, re.I):
+                                result['backup_codes_status'] = '关闭'
+                                result['backup_codes_remaining'] = 0
+                            else:
+                                result['backup_codes_status'] = '开启'
+                                result['backup_codes_remaining'] = 10
+
+            # Fallback scan for recovery email if missed
+            if not result['recovery_email']:
+                emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
+                valid = [e for e in emails if not e.endswith('@google.com') and 'myaccount' not in e and (not account_email or e.lower() != account_email.lower())]
+                if valid:
+                    result['recovery_email'] = valid[0]
+                    result['has_recovery_email'] = '有'
+                    result['recovery_email_verified'] = '已验证'
                         
             return result
     finally:

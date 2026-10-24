@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Globe,
   ShieldCheck,
+  ShieldAlert,
   ArrowLeftRight,
   Gauge,
   Sparkles,
@@ -306,6 +307,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
     const [subStartDate, setSubStartDate] = useState<string>(currentSub.start_date || "");
 
     // 4. Backup Codes Section State
+    const [backupCodesStatus, setBackupCodesStatus] = useState<string>(
+      displayStatus(account.auth?.backup_codes_status)
+    );
+    const [backupCodesCount, setBackupCodesCount] = useState<number>(
+      account.auth?.backup_codes_count ?? 0
+    );
     const [revealedCodes, setRevealedCodes] = useState<Record<string, boolean>>({});
     const [isBackupImportOpen, setIsBackupImportOpen] = useState<boolean>(false);
     const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
@@ -324,8 +331,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
       return Boolean(currentBatch?.entries && currentBatch.entries.length > 0);
     }, [currentBatch]);
 
-    const cloudBackupCount = account.auth?.backup_codes_count ?? 0;
-    const isBackupCloudEnabled = account.auth?.backup_codes_status === "开启" || cloudBackupCount > 0;
+    const cloudBackupCount = backupCodesCount;
+    const isBackupCloudEnabled = backupCodesStatus === "开启" || cloudBackupCount > 0;
 
     // 5. Passkeys Section State
     const [isPasskeyModalOpen, setIsPasskeyModalOpen] = useState<boolean>(false);
@@ -486,6 +493,12 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
         subPlan !== origSubPlan ||
         subStartDate !== origSubStartDate;
 
+      const origBackupStatus = displayStatus(account.auth?.backup_codes_status);
+      const origBackupCount = account.auth?.backup_codes_count ?? 0;
+      const backupChanged =
+        backupCodesStatus !== origBackupStatus ||
+        backupCodesCount !== origBackupCount;
+
       return (
         emailChanged ||
         remarkChanged ||
@@ -495,7 +508,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
         totpChanged ||
         recoveryEmailChanged ||
         recoveryPhoneChanged ||
-        subChanged
+        subChanged ||
+        backupChanged
       );
     }, [
       passwordLoaded,
@@ -515,6 +529,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
       subStatus,
       subPlan,
       subStartDate,
+      backupCodesStatus,
+      backupCodesCount,
       account,
       currentSub,
     ]);
@@ -575,6 +591,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
       setSubStatus(displayStatus(currentSub.status));
       setSubPlan(displayStatus(currentSub.plan));
       setSubStartDate(currentSub.start_date || "");
+      setBackupCodesStatus(displayStatus(account.auth?.backup_codes_status));
+      setBackupCodesCount(account.auth?.backup_codes_count ?? 0);
       setSaveStatus("idle");
       setSaveErrorMsg("");
       setIsEditing(false);
@@ -621,8 +639,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
           totpStatus,
           totpSecret.trim() ? totpSecret.trim() : null,
           totpAddedAt.trim() ? totpAddedAt.trim() : null,
-          account.auth?.backup_codes_status,
-          account.auth?.backup_codes_count
+          backupCodesStatus,
+          backupCodesCount
         );
 
         // 3. Update recovery info
@@ -877,6 +895,11 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
       if (data.membership_plan && data.membership_plan !== "未填写") setSubPlan(data.membership_plan);
       if (data.membership_start_date) setSubStartDate(data.membership_start_date);
 
+      if (data.backup_codes_status) setBackupCodesStatus(data.backup_codes_status);
+      if (data.backup_codes_remaining !== undefined && data.backup_codes_remaining !== null) {
+        setBackupCodesCount(data.backup_codes_remaining);
+      }
+
       try {
         const next2fa = data.two_factor_status || twoFactorStatus;
         const nextSkip = data.skip_password_status || skipPasswordStatus;
@@ -889,8 +912,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
         const nextRecPhone = targetPhone ? targetPhone : recoveryPhone;
         const nextRecPhoneVer = data.recovery_phone_verified || (targetPhone ? "已验证" : recoveryPhoneVerified);
 
-        const nextBackupStatus = data.backup_codes_status || account.auth?.backup_codes_status;
-        const nextBackupCount = data.backup_codes_remaining !== undefined ? data.backup_codes_remaining : account.auth?.backup_codes_count;
+        const nextBackupStatus = data.backup_codes_status || backupCodesStatus;
+        const nextBackupCount = data.backup_codes_remaining !== undefined ? data.backup_codes_remaining : backupCodesCount;
 
         await api.updateAuthInfo(
           account.id,
@@ -1303,17 +1326,24 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
             </section>
 
 <section id="section-backup-codes" className="profile-section scroll-mt-6" aria-labelledby="backup-heading">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-baseline gap-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-baseline gap-3 flex-wrap">
                   <h2 id="backup-heading" className="section-heading">备用验证码</h2>
                   {hasLocalEntries ? (
-                    <span className="text-xs text-muted-foreground tabular-nums">剩余 {currentBatch?.unused_count ?? 0} 条</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      剩余 {currentBatch?.unused_count ?? 0} 条
+                      {backupCodesStatus && backupCodesStatus !== "未填写" ? ` · Google 云端：${backupCodesStatus}` : ""}
+                    </span>
+                  ) : backupCodesStatus === "关闭" ? (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 font-medium tabular-nums border border-rose-500/20">
+                      Google 云端状态：关闭（未开启）
+                    </span>
                   ) : isBackupCloudEnabled ? (
                     <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium tabular-nums border border-emerald-500/20">
                       Google 云端已开启 · 剩余 {cloudBackupCount > 0 ? cloudBackupCount : 10} 条可用
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground tabular-nums">剩余 0 条</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">未记录</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -1340,6 +1370,33 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                 </div>
               </div>
 
+              {/* Edit mode: explicit cloud status toggle */}
+              {isEditing && (
+                <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-muted/40 border border-border-subtle mb-3">
+                  <span className="text-xs font-medium text-muted-foreground">云端设置状态</span>
+                  <SegmentedField
+                    aria-label="备用验证码状态"
+                    value={backupCodesStatus}
+                    onChange={setBackupCodesStatus}
+                    options={statusOptions}
+                  />
+                  {backupCodesStatus === "开启" && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
+                      <span>可用条数：</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={backupCodesCount}
+                        onChange={(e) => setBackupCodesCount(Math.max(0, Math.min(10, parseInt(e.target.value) || 0)))}
+                        className="w-14 h-7 text-xs px-2 rounded border border-input bg-background font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-ring"
+                      />
+                      <span>条</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {hasLocalEntries ? (
                 <div className="backup-grid">
                   {currentBatch!.entries.map((entry, index) => (
@@ -1353,6 +1410,45 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : backupCodesStatus === "关闭" ? (
+                <div className="my-2 rounded-lg border border-rose-500/20 bg-rose-500/5 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-8 w-8 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldAlert className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-foreground">Google 云端备用验证码处于【关闭】状态</span>
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                          未开启
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        此 Google 账号目前尚未在 Google 安全设置中生成或启用备用验证码。建议在 Chrome 中前往 Google 账号中心生成并开启备用验证码，以防两步验证丢失时无法登录。
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rose-500/15">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDirectUrl("backupCodes", "备用验证码设置")}
+                      className="h-7 text-xs gap-1.5 cursor-pointer hover:bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      在 Chrome 中前往开启备用验证码
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsBackupImportOpen(true)}
+                      className="h-7 text-xs gap-1.5 cursor-pointer hover:bg-accent text-muted-foreground"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      手动导入备用码
+                    </Button>
+                  </div>
                 </div>
               ) : isBackupCloudEnabled ? (
                 <div className="my-2 rounded-lg border border-border-subtle bg-muted/20 p-4 space-y-3">
@@ -1394,7 +1490,9 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                   </div>
                 </div>
               ) : (
-                <p className="text-[13px] text-muted-foreground py-2">暂无备用码</p>
+                <p className="text-[13px] text-muted-foreground py-2">
+                  暂无备用码记录。可通过上方“一键配置”自动从 Google 抓取云端状态，或点击右上角“导入备用码”。
+                </p>
               )}
             </section>
 
@@ -1744,8 +1842,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                 totpStatus,
                 newSecret.trim() ? newSecret.trim() : null,
                 totpAddedAt.trim() ? totpAddedAt.trim() : null,
-                account.auth?.backup_codes_status,
-                account.auth?.backup_codes_count
+                backupCodesStatus,
+                backupCodesCount
               );
               await loadAccountDetail(account.id);
               await refreshAccounts();
@@ -1765,8 +1863,8 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                 totpStatus,
                 null,
                 totpAddedAt.trim() ? totpAddedAt.trim() : null,
-                account.auth?.backup_codes_status,
-                account.auth?.backup_codes_count
+                backupCodesStatus,
+                backupCodesCount
               );
               await loadAccountDetail(account.id);
               await refreshAccounts();
@@ -1784,6 +1882,7 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
             skipPasswordStatus,
             totpStatus,
             totpAddedAt,
+            backupCodesStatus,
           }}
           currentRecovery={{
             hasRecoveryEmail,

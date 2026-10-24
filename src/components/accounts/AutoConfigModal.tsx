@@ -37,6 +37,7 @@ interface AutoConfigModalProps {
     skipPasswordStatus: string;
     totpStatus: string;
     totpAddedAt?: string | null;
+    backupCodesStatus?: string | null;
   };
   currentRecovery: {
     hasRecoveryEmail: string;
@@ -77,10 +78,10 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   const res: ScrapedSecurityData = {};
 
   // Recovery Phone & 2-Step Verification Phones
-  const recPhoneMatch = clean.match(/(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机)[\s:\-\n]+([^\n]+)/i);
+  const recPhoneMatch = clean.match(/(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机|Số điện thoại khôi phục)[\s:\n-]+([^\n]+)/i);
   if (recPhoneMatch) {
     const val = recPhoneMatch[1].trim();
-    if (/添加手机号码|添加电话号码|Add a phone|Add phone/i.test(val)) {
+    if (/添加手机号码|添加电话号码|Add a phone|Add phone|Thêm số điện thoại/i.test(val)) {
       res.has_recovery_phone = "无";
       res.recovery_phone = null;
       res.recovery_phone_verified = "未填写";
@@ -94,7 +95,7 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
     }
   }
 
-  const twoFaPhoneMatch = clean.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机|用于进行两步验证的电话号码)[\s:\-\n]+([+0-9\s-]{6,20})/i);
+  const twoFaPhoneMatch = clean.match(/(?:2-Step Verification phones|两步验证电话|两步验证手机|用于进行两步验证的电话号码|Số điện thoại dùng cho quy trình xác minh 2 bước)[\s:\n-]+([+0-9\s-]{6,20})/i);
   if (twoFaPhoneMatch) {
     res.two_factor_phone = twoFaPhoneMatch[1].trim();
     if (!res.recovery_phone && res.has_recovery_phone === "有") {
@@ -113,7 +114,7 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   }
 
   // Recovery Email
-  const recEmailMatch = clean.match(/(?:Recovery email|辅助邮箱|恢复邮箱)[\s:\-\n]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+  const recEmailMatch = clean.match(/(?:Recovery email|辅助邮箱|恢复邮箱|Email khôi phục)[\s:\n-]+([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
   if (recEmailMatch) {
     res.recovery_email = recEmailMatch[1].trim();
     res.has_recovery_email = "有";
@@ -129,41 +130,41 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   }
 
   // 2-Step Verification
-  const twoFaMatch = clean.match(/(?:2-Step Verification|两步验证)[\s:\-\n]+([^\n]+)/i);
+  const twoFaMatch = clean.match(/(?:2-Step Verification|两步验证|Xác minh 2 bước)[\s:\n-]+([^\n]+)/i);
   if (twoFaMatch) {
     const val = twoFaMatch[1].toLowerCase();
-    if (/off|关闭|未开启|未启用|停用/.test(val)) {
+    if (/off|关闭|未开启|未启用|停用|tắt|chưa bật/.test(val)) {
       res.two_factor_status = "关闭";
-    } else if (/on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}/.test(val)) {
+    } else if (/on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}|bật|đang bật|bật từ/.test(val)) {
       res.two_factor_status = "开启";
     }
-  } else if (clean.includes("2-Step Verification") || clean.includes("两步验证")) {
+  } else if (clean.includes("2-Step Verification") || clean.includes("两步验证") || clean.includes("Xác minh 2 bước")) {
     res.two_factor_status = "开启";
   }
 
   // Skip Password
-  const skipPwdMatch = clean.match(/(?:Skip password when possible|尽可能跳过密码)[\s:\-\n]+([^\n]+)/i);
+  const skipPwdMatch = clean.match(/(?:Skip password when possible|尽可能跳过密码|Bỏ qua mật khẩu khi có thể)[\s:\n-]+([^\n]+)/i);
   if (skipPwdMatch) {
     const val = skipPwdMatch[1].toLowerCase();
-    res.skip_password_status = /off|关闭|未开启|未启用/.test(val) ? "关闭" : "开启";
+    res.skip_password_status = /off|关闭|未开启|未启用|tắt/.test(val) ? "关闭" : "开启";
   } else {
     res.skip_password_status = "开启";
   }
 
   // Authenticator
-  const totpMatch = clean.match(/(?:Authenticator|身份验证器)[\s:\-\n]+([^\n]+)/i);
+  const totpMatch = clean.match(/(?:Authenticator|身份验证器)[\s:\n-]+([^\n]+)/i);
   if (totpMatch) {
     const val = totpMatch[1].toLowerCase();
-    if (/not added|未添加|off|关闭|未开启/.test(val)) {
+    if (/not added|未添加|off|关闭|未开启|chưa thêm|tắt/.test(val)) {
       res.totp_status = "关闭";
       res.totp_added_at = null;
-    } else if (/added|添加|已添加|启用|\d+月\d+日/.test(val)) {
+    } else if (/added|添加|已添加|启用|\d+月\d+日|đã thêm|bật/.test(val)) {
       res.totp_status = "开启";
-      const dateM = totpMatch[1].match(/(?:添加时间[：:]|已添加[：:]?|Added\s*)([^\n]+)/);
+      const dateM = totpMatch[1].match(/(?:添加时间[：:]|已添加[：:]?|Added\s*|Đã thêm\s*)([^\n]+)/);
       if (dateM) {
         res.totp_added_at = dateM[1].trim();
       } else {
-        const d = totpMatch[1].match(/(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2})/);
+        const d = totpMatch[1].match(/(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2}|\d{1,2}\s*thg\s*\d{1,2})/);
         if (d) res.totp_added_at = d[1].trim();
       }
     }
@@ -172,14 +173,23 @@ export function parseSecurityText(raw: string): ScrapedSecurityData | null {
   }
 
   // Backup codes
-  const backupMatch = clean.match(/(?:Backup codes|备用验证码|备用代码)[\s:\-\n]+(\d+)\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining|个可用的验证码)/i);
+  const inAddMoreSection = /(?:Bạn có thể thêm các tuỳ chọn đăng nhập khác|您还可以添加其他登录选项|You can add more sign-in options|Add more second steps)[\s\S]*(?:Mã dự phòng|Backup codes|备用验证码)/i.test(clean);
+  const backupMatch = clean.match(/(?:Backup codes|备用验证码|备用代码|Mã dự phòng)[\s:\n-]+(\d+)\s*(?:codes available|个可用|剩余|个剩余|条剩余|remaining|个可用的验证码|mã có thể dùng|mã khả dụng)/i);
   if (backupMatch) {
     res.backup_codes_status = "开启";
     res.backup_codes_remaining = parseInt(backupMatch[1], 10);
-  } else if (clean.includes("Backup codes") || clean.includes("备用验证码")) {
-    res.backup_codes_status = "开启";
-    const countMatch = clean.match(/(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)/i);
-    res.backup_codes_remaining = countMatch ? parseInt(countMatch[1], 10) : 10;
+  } else if (inAddMoreSection) {
+    res.backup_codes_status = "关闭";
+    res.backup_codes_remaining = 0;
+  } else if (clean.includes("Backup codes") || clean.includes("备用验证码") || clean.includes("Mã dự phòng")) {
+    if (/(?:Backup codes|备用验证码|Mã dự phòng)[\s:\n-]+(?:not set|chưa|未设置|关闭|off|chưa bật)/i.test(clean)) {
+      res.backup_codes_status = "关闭";
+      res.backup_codes_remaining = 0;
+    } else {
+      const countMatch = clean.match(/(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码|mã có thể dùng|mã khả dụng)/i);
+      res.backup_codes_status = "开启";
+      res.backup_codes_remaining = countMatch ? parseInt(countMatch[1], 10) : 10;
+    }
   }
 
   // Membership / Subscription
@@ -843,10 +853,24 @@ export function AutoConfigModal({
                 <div className="flex items-center justify-between py-1">
                   <span className="text-muted-foreground">备用验证码</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground/70 line-through text-[11px]">剩余 {backupCodesCount} 条</span>
+                    <span className="text-muted-foreground/70 line-through text-[11px]">
+                      {currentAuth.backupCodesStatus === "关闭"
+                        ? "关闭"
+                        : currentAuth.backupCodesStatus === "开启"
+                        ? `开启 (剩余 ${backupCodesCount} 条)`
+                        : backupCodesCount > 0
+                        ? `剩余 ${backupCodesCount} 条`
+                        : "未填写"}
+                    </span>
                     <span>→</span>
-                    <span className="font-medium text-foreground bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded text-[11px]">
-                      剩余 {scrapedData.backup_codes_remaining ?? 10} 条
+                    <span className={`font-medium px-2 py-0.5 rounded text-[11px] ${
+                      scrapedData.backup_codes_status === "关闭"
+                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    }`}>
+                      {scrapedData.backup_codes_status === "关闭"
+                        ? "关闭"
+                        : `开启 (剩余 ${scrapedData.backup_codes_remaining ?? 10} 条)`}
                     </span>
                   </div>
                 </div>
