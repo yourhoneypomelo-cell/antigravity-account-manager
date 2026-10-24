@@ -320,6 +320,13 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
       );
     }, [account.backup_code_batches]);
 
+    const hasLocalEntries = useMemo(() => {
+      return Boolean(currentBatch?.entries && currentBatch.entries.length > 0);
+    }, [currentBatch]);
+
+    const cloudBackupCount = account.auth?.backup_codes_count ?? 0;
+    const isBackupCloudEnabled = account.auth?.backup_codes_status === "开启" || cloudBackupCount > 0;
+
     // 5. Passkeys Section State
     const [isPasskeyModalOpen, setIsPasskeyModalOpen] = useState<boolean>(false);
     const [editingPasskey, setEditingPasskey] = useState<SecurityKeyEntry | null>(null);
@@ -613,7 +620,9 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
           skipPasswordStatus,
           totpStatus,
           totpSecret.trim() ? totpSecret.trim() : null,
-          totpAddedAt.trim() ? totpAddedAt.trim() : null
+          totpAddedAt.trim() ? totpAddedAt.trim() : null,
+          account.auth?.backup_codes_status,
+          account.auth?.backup_codes_count
         );
 
         // 3. Update recovery info
@@ -880,6 +889,9 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
         const nextRecPhone = targetPhone ? targetPhone : recoveryPhone;
         const nextRecPhoneVer = data.recovery_phone_verified || (targetPhone ? "已验证" : recoveryPhoneVerified);
 
+        const nextBackupStatus = data.backup_codes_status || account.auth?.backup_codes_status;
+        const nextBackupCount = data.backup_codes_remaining !== undefined ? data.backup_codes_remaining : account.auth?.backup_codes_count;
+
         await api.updateAuthInfo(
           account.id,
           Boolean(password),
@@ -889,7 +901,9 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
           nextSkip,
           nextTotp,
           totpSecret,
-          data.totp_added_at || totpAddedAt || null
+          data.totp_added_at || totpAddedAt || null,
+          nextBackupStatus,
+          nextBackupCount
         );
 
         await api.updateRecoveryInfo(
@@ -1290,7 +1304,18 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
 
 <section id="section-backup-codes" className="profile-section scroll-mt-6" aria-labelledby="backup-heading">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-baseline gap-3"><h2 id="backup-heading" className="section-heading">备用验证码</h2><span className="text-xs text-muted-foreground tabular-nums">剩余 {currentBatch?.unused_count ?? 0} 条</span></div>
+                <div className="flex items-baseline gap-3">
+                  <h2 id="backup-heading" className="section-heading">备用验证码</h2>
+                  {hasLocalEntries ? (
+                    <span className="text-xs text-muted-foreground tabular-nums">剩余 {currentBatch?.unused_count ?? 0} 条</span>
+                  ) : isBackupCloudEnabled ? (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium tabular-nums border border-emerald-500/20">
+                      Google 云端已开启 · 剩余 {cloudBackupCount > 0 ? cloudBackupCount : 10} 条可用
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground tabular-nums">剩余 0 条</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -1309,20 +1334,68 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                       <span>在绑定的 Chrome 中直达备用验证码页面</span>
                     </TooltipContent>
                   </Tooltip>
-                  <Button variant="outline" size="sm" disabled={!isEditing} onClick={() => setIsBackupImportOpen(true)}><Plus className="w-3.5 h-3.5" />导入备用码</Button>
+                  <Button variant="outline" size="sm" onClick={() => setIsBackupImportOpen(true)}>
+                    <Plus className="w-3.5 h-3.5" />导入备用码
+                  </Button>
                 </div>
               </div>
-              {!currentBatch?.entries?.length ? <p className="text-[13px] text-muted-foreground py-2">暂无备用码</p> : <div className="backup-grid">
-                {currentBatch.entries.map((entry, index) => <div key={entry.id} className="h-[46px] flex items-center gap-2 border-b border-border-subtle group px-1.5 -mx-1.5 rounded-sm transition-colors duration-150 hover:bg-accent/40">
-                  <span className="text-[11px] text-muted-foreground tabular-nums w-5 shrink-0">{String(entry.sequence_no || index + 1).padStart(2, "0")}</span>
-                  <span className={`font-mono-numbers text-[13px] flex-1 min-w-0 whitespace-nowrap ${entry.is_used || entry.is_revoked ? "text-muted-foreground line-through" : "text-foreground"}`}>{revealedCodes[entry.id] ? entry.code.replace(/\s/g, "").replace(/(.{4})/, "$1 ") : "•••• ••••"}</span>
-                  <div className="flex items-center shrink-0">
-                    <IconAction label={`${revealedCodes[entry.id] ? "隐藏" : "显示"}备用码 ${index + 1}`} onClick={() => handleToggleRevealCode(entry.id)}>{revealedCodes[entry.id] ? <EyeOff /> : <Eye />}</IconAction>
-                    <IconAction label={copiedCodeId === entry.id ? "已复制备用码" : `复制备用码 ${index + 1}`} onClick={() => handleCopyCode(entry.id, entry.code)} disabled={entry.is_revoked}>{copiedCodeId === entry.id ? <Check className="text-emerald-600 dark:text-emerald-400" /> : <Copy />}</IconAction>
-                    <Button variant="ghost" size="xs" className="w-[72px] text-muted-foreground" disabled={!isEditing || entry.is_revoked || pendingCodeId === entry.id} onClick={() => handleToggleCodeUsed(entry)} aria-label={`${entry.is_used ? "撤销已用" : "标记已用"}备用码 ${index + 1}`}>{entry.is_revoked ? "已失效" : entry.is_used ? "撤销已用" : "标记已用"}</Button>
+
+              {hasLocalEntries ? (
+                <div className="backup-grid">
+                  {currentBatch!.entries.map((entry, index) => (
+                    <div key={entry.id} className="h-[46px] flex items-center gap-2 border-b border-border-subtle group px-1.5 -mx-1.5 rounded-sm transition-colors duration-150 hover:bg-accent/40">
+                      <span className="text-[11px] text-muted-foreground tabular-nums w-5 shrink-0">{String(entry.sequence_no || index + 1).padStart(2, "0")}</span>
+                      <span className={`font-mono-numbers text-[13px] flex-1 min-w-0 whitespace-nowrap ${entry.is_used || entry.is_revoked ? "text-muted-foreground line-through" : "text-foreground"}`}>{revealedCodes[entry.id] ? entry.code.replace(/\s/g, "").replace(/(.{4})/, "$1 ") : "•••• ••••"}</span>
+                      <div className="flex items-center shrink-0">
+                        <IconAction label={`${revealedCodes[entry.id] ? "隐藏" : "显示"}备用码 ${index + 1}`} onClick={() => handleToggleRevealCode(entry.id)}>{revealedCodes[entry.id] ? <EyeOff /> : <Eye />}</IconAction>
+                        <IconAction label={copiedCodeId === entry.id ? "已复制备用码" : `复制备用码 ${index + 1}`} onClick={() => handleCopyCode(entry.id, entry.code)} disabled={entry.is_revoked}>{copiedCodeId === entry.id ? <Check className="text-emerald-600 dark:text-emerald-400" /> : <Copy />}</IconAction>
+                        <Button variant="ghost" size="xs" className="w-[72px] text-muted-foreground" disabled={!isEditing || entry.is_revoked || pendingCodeId === entry.id} onClick={() => handleToggleCodeUsed(entry)} aria-label={`${entry.is_used ? "撤销已用" : "标记已用"}备用码 ${index + 1}`}>{entry.is_revoked ? "已失效" : entry.is_used ? "撤销已用" : "标记已用"}</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : isBackupCloudEnabled ? (
+                <div className="my-2 rounded-lg border border-border-subtle bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-8 w-8 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-medium text-foreground">Google 云端已开启备用验证码</span>
+                        <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">
+                          剩余 {cloudBackupCount > 0 ? cloudBackupCount : 10} 条可用
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Google 官方安全机制在页面概览中只展示可用数量（{cloudBackupCount > 0 ? cloudBackupCount : 10} 条），其实际 8 位明文备用码受密码二次验证保护。本地保险库暂未录入明文列表。
+                      </p>
+                    </div>
                   </div>
-                </div>)}
-              </div>}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border-subtle/60">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDirectUrl("backupCodes", "备用验证码设置")}
+                      className="h-7 text-xs gap-1.5 cursor-pointer hover:bg-accent"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                      在 Chrome 中直达并查看明文
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setIsBackupImportOpen(true)}
+                      className="h-7 text-xs gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      导入 8 位明文备用码
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[13px] text-muted-foreground py-2">暂无备用码</p>
+              )}
             </section>
 
             <section className="profile-section" aria-labelledby="passkeys-heading">
@@ -1670,7 +1743,9 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                 skipPasswordStatus,
                 totpStatus,
                 newSecret.trim() ? newSecret.trim() : null,
-                totpAddedAt.trim() ? totpAddedAt.trim() : null
+                totpAddedAt.trim() ? totpAddedAt.trim() : null,
+                account.auth?.backup_codes_status,
+                account.auth?.backup_codes_count
               );
               await loadAccountDetail(account.id);
               await refreshAccounts();
@@ -1689,7 +1764,9 @@ const AccountDetailForm = forwardRef<AccountDetailRef, AccountDetailFormProps>(
                 skipPasswordStatus,
                 totpStatus,
                 null,
-                totpAddedAt.trim() ? totpAddedAt.trim() : null
+                totpAddedAt.trim() ? totpAddedAt.trim() : null,
+                account.auth?.backup_codes_status,
+                account.auth?.backup_codes_count
               );
               await loadAccountDetail(account.id);
               await refreshAccounts();

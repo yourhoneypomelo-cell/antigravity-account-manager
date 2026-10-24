@@ -68,6 +68,8 @@ export interface AuthInfo {
   totp_status?: string | null; // '未记录' | '未填写' | '开启' | '关闭'
   totp_secret?: string | null;
   totp_added_at?: string | null;
+  backup_codes_status?: string | null; // '未记录' | '开启' | '关闭'
+  backup_codes_count?: number | null;
   updated_at: string;
 }
 

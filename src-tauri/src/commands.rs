@@ -347,6 +347,8 @@ pub fn update_auth_info(
     totp_status: Option<String>,
     totp_secret: Option<String>,
     totp_added_at: Option<String>,
+    backup_codes_status: Option<String>,
+    backup_codes_count: Option<i64>,
 ) -> Result<bool, String> {
     with_db(&state, |conn| {
         db::update_auth_info(
@@ -360,6 +362,8 @@ pub fn update_auth_info(
             totp_status.as_deref(),
             totp_secret.as_deref(),
             totp_added_at.as_deref(),
+            backup_codes_status.as_deref(),
+            backup_codes_count,
         )?;
         Ok(true)
     })
@@ -561,6 +565,8 @@ pub fn import_structured_accounts(
                     row.two_factor_status.as_deref().unwrap_or("未记录"),
                     &[],
                     "未记录",
+                    None,
+                    None,
                     None,
                     None,
                     None,

@@ -70,6 +70,8 @@ pub struct AuthInfo {
     pub totp_status: Option<String>,
     pub totp_secret: Option<String>,
     pub totp_added_at: Option<String>,
+    pub backup_codes_status: Option<String>,
+    pub backup_codes_count: Option<i64>,
     pub updated_at: String,
 }
 

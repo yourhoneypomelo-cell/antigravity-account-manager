@@ -62,6 +62,8 @@ fn main() {
                 None,
                 None,
                 None,
+                None,
+                None,
             ).expect("Update auth failed");
         }
 

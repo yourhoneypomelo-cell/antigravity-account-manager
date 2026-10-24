@@ -169,6 +169,8 @@ pub fn init_tables(conn: &Connection) -> Result<(), String> {
     let _ = conn.execute("ALTER TABLE auth_info ADD COLUMN totp_status TEXT DEFAULT '未记录'", []);
     let _ = conn.execute("ALTER TABLE auth_info ADD COLUMN totp_secret TEXT", []);
     let _ = conn.execute("ALTER TABLE auth_info ADD COLUMN totp_added_at TEXT", []);
+    let _ = conn.execute("ALTER TABLE auth_info ADD COLUMN backup_codes_status TEXT DEFAULT '未记录'", []);
+    let _ = conn.execute("ALTER TABLE auth_info ADD COLUMN backup_codes_count INTEGER", []);
 
     Ok(())
 }
@@ -192,7 +194,8 @@ pub fn get_accounts_summary(conn: &Connection) -> Result<Vec<AccountSummary>, St
                     SELECT COUNT(*) FROM backup_code_entries e 
                     JOIN backup_code_batches b ON e.batch_id = b.id 
                     WHERE b.account_id = a.id AND b.is_active = 1
-                ) as total_codes
+                ) as total_codes,
+                COALESCE(auth.backup_codes_count, 0) as cloud_backup_count
             FROM accounts a
             LEFT JOIN auth_info auth ON a.id = auth.account_id
             ORDER BY a.is_favorite DESC, a.email ASC
@@ -209,6 +212,12 @@ pub fn get_accounts_summary(conn: &Connection) -> Result<Vec<AccountSummary>, St
             let sub_plan: Option<String> = row.get(11)?;
             let sub_status: Option<String> = row.get(12)?;
 
+            let unused_codes: i64 = row.get(13)?;
+            let total_codes: i64 = row.get(14)?;
+            let cloud_codes: i64 = row.get(15).unwrap_or(0);
+            let final_remaining = if total_codes > 0 { unused_codes } else { cloud_codes };
+            let final_total = if total_codes > 0 { total_codes } else { cloud_codes };
+
             Ok(AccountSummary {
                 id: row.get(0)?,
                 email: row.get(1)?,
@@ -223,8 +232,8 @@ pub fn get_accounts_summary(conn: &Connection) -> Result<Vec<AccountSummary>, St
                 updated_at: row.get(10)?,
                 gemini_plan: sub_plan.unwrap_or_else(|| "未记录".to_string()),
                 gemini_status: sub_status.unwrap_or_else(|| "未记录".to_string()),
-                backup_codes_remaining: row.get(13)?,
-                backup_codes_total: row.get(14)?,
+                backup_codes_remaining: final_remaining,
+                backup_codes_total: final_total,
             })
         })
         .map_err(|e| format!("Query error: {}", e))?;
@@ -265,7 +274,7 @@ pub fn get_account_detail(conn: &Connection, account_id: &str) -> Result<Account
 
     // 2. Auth Info
     let auth = match conn.query_row(
-        "SELECT has_password, password_enc, password_updated_at, two_factor_status, two_factor_methods, skip_password_status, updated_at, totp_status, totp_secret, totp_added_at FROM auth_info WHERE account_id = ?1",
+        "SELECT has_password, password_enc, password_updated_at, two_factor_status, two_factor_methods, skip_password_status, updated_at, totp_status, totp_secret, totp_added_at, backup_codes_status, backup_codes_count FROM auth_info WHERE account_id = ?1",
         params![account_id],
         |row| {
             let has_pw: i32 = row.get(0)?;
@@ -274,6 +283,8 @@ pub fn get_account_detail(conn: &Connection, account_id: &str) -> Result<Account
             let totp_status: Option<String> = row.get(7).unwrap_or(None);
             let totp_secret: Option<String> = row.get(8).unwrap_or(None);
             let totp_added_at: Option<String> = row.get(9).unwrap_or(None);
+            let backup_codes_status: Option<String> = row.get(10).unwrap_or(None);
+            let backup_codes_count: Option<i64> = row.get(11).unwrap_or(None);
             Ok(AuthInfo {
                 has_password: has_pw == 1,
                 password: row.get(1)?,
@@ -284,6 +295,8 @@ pub fn get_account_detail(conn: &Connection, account_id: &str) -> Result<Account
                 totp_status,
                 totp_secret,
                 totp_added_at,
+                backup_codes_status,
+                backup_codes_count,
                 updated_at: row.get(6)?,
             })
         },
@@ -299,6 +312,8 @@ pub fn get_account_detail(conn: &Connection, account_id: &str) -> Result<Account
             totp_status: Some("未记录".to_string()),
             totp_secret: None,
             totp_added_at: None,
+            backup_codes_status: Some("未记录".to_string()),
+            backup_codes_count: None,
             updated_at: acc_row.9.clone(),
         },
     };
@@ -610,6 +625,8 @@ pub fn update_auth_info(
     totp_status: Option<&str>,
     totp_secret: Option<&str>,
     totp_added_at: Option<&str>,
+    backup_codes_status: Option<&str>,
+    backup_codes_count: Option<i64>,
 ) -> Result<(), String> {
     let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let methods_json = serde_json::to_string(two_factor_methods).unwrap_or_else(|_| "[]".to_string());
@@ -621,8 +638,8 @@ pub fn update_auth_info(
     };
 
     conn.execute(
-        r#"INSERT INTO auth_info (account_id, has_password, password_enc, password_updated_at, two_factor_status, two_factor_methods, skip_password_status, totp_status, totp_secret, totp_added_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+        r#"INSERT INTO auth_info (account_id, has_password, password_enc, password_updated_at, two_factor_status, two_factor_methods, skip_password_status, totp_status, totp_secret, totp_added_at, backup_codes_status, backup_codes_count, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
            ON CONFLICT(account_id) DO UPDATE SET
                has_password = excluded.has_password,
                password_enc = CASE WHEN excluded.password_enc IS NOT NULL THEN excluded.password_enc ELSE auth_info.password_enc END,
@@ -633,6 +650,8 @@ pub fn update_auth_info(
                totp_status = excluded.totp_status,
                totp_secret = excluded.totp_secret,
                totp_added_at = CASE WHEN excluded.totp_added_at IS NOT NULL THEN excluded.totp_added_at ELSE auth_info.totp_added_at END,
+               backup_codes_status = CASE WHEN excluded.backup_codes_status IS NOT NULL THEN excluded.backup_codes_status ELSE auth_info.backup_codes_status END,
+               backup_codes_count = CASE WHEN excluded.backup_codes_count IS NOT NULL THEN excluded.backup_codes_count ELSE auth_info.backup_codes_count END,
                updated_at = excluded.updated_at
         "#,
         params![
@@ -646,6 +665,8 @@ pub fn update_auth_info(
             totp_status.unwrap_or("未记录"),
             totp_secret,
             totp_added_at,
+            backup_codes_status.unwrap_or("未记录"),
+            backup_codes_count,
             now,
         ],
     ).map_err(|e| format!("Failed to update auth info: {}", e))?;
@@ -1064,6 +1085,8 @@ pub fn seed_mock_data(conn: &mut Connection) -> Result<(), String> {
         Some("开启"),
         Some("JBSWY3DPEHPK3PXP"),
         None,
+        Some("开启"),
+        Some(10),
     )?;
     update_recovery_info(
         conn,
@@ -1190,6 +1213,8 @@ pub fn seed_mock_data(conn: &mut Connection) -> Result<(), String> {
         "关闭",
         Some("未记录"),
         None,
+        None,
+        Some("未记录"),
         None,
     )?;
     update_recovery_info(

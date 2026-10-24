@@ -264,86 +264,83 @@ def scrape_security(executable_path, profile_path, account_email=None, headless=
             # Robust semantic extraction
             for i, line in enumerate(lines):
                 # 1. 2-Step Verification
-                if re.search(r'^(?:2-Step Verification|两步验证)$', line, re.I):
-                    if i + 1 < len(lines):
-                        next_l = lines[i+1].lower()
-                        if re.search(r'off|关闭|未开启|未启用|停用', next_l, re.I):
-                            result['two_factor_status'] = '关闭'
-                        elif re.search(r'on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}', next_l, re.I):
-                            result['two_factor_status'] = '开启'
+                if re.search(r'^(?:2-Step Verification|两步验证)$', line, re.I) or re.search(r'(?:两步验证|2-Step Verification)', line, re.I):
+                    lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
+                    if re.search(r'off|关闭|未开启|未启用|停用', lookahead, re.I):
+                        result['two_factor_status'] = '关闭'
+                    elif re.search(r'on|开启|已开启|启用|已启用|启用时间|turned on|\d+月\d+日|\d{4}|check_circle|done|verified', lookahead, re.I) or '启用时间' in line:
+                        result['two_factor_status'] = '开启'
                             
                 # 2. Skip password when possible
                 if 'Skip password when possible' in line or '尽可能跳过密码' in line:
-                    if i + 1 < len(lines):
-                        next_l = lines[i+1].lower()
-                        result['skip_password_status'] = '关闭' if re.search(r'off|关闭|未开启|未启用', next_l, re.I) else '开启'
+                    lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
+                    result['skip_password_status'] = '关闭' if re.search(r'off|关闭|未开启|未启用', lookahead, re.I) else '开启'
                         
                 # 3. Recovery phone
                 if re.search(r'^(?:Recovery phone|辅助电话|辅助电话号码|恢复电话|密保手机)', line, re.I):
-                    if i + 1 < len(lines):
-                        val = lines[i+1]
-                        if re.search(r'添加手机号码|添加电话号码|Add a phone|Add phone', val, re.I):
+                    for next_val in lines[i+1:min(i+4, len(lines))]:
+                        if re.search(r'添加手机号码|添加电话号码|Add a phone|Add phone', next_val, re.I):
                             result['has_recovery_phone'] = '无'
                             result['recovery_phone'] = None
                             result['recovery_phone_verified'] = '未填写'
+                            break
                         else:
-                            phone_m = re.search(r'([+0-9\s-]{6,20})', val)
-                            if phone_m:
+                            phone_m = re.search(r'([+0-9\s-]{6,20})', next_val)
+                            if phone_m and len(phone_m.group(1).replace(' ', '').replace('-', '')) >= 7:
                                 result['recovery_phone'] = phone_m.group(1).strip()
                                 result['has_recovery_phone'] = '有'
                                 result['recovery_phone_verified'] = '已验证'
-                            else:
-                                result['has_recovery_phone'] = '无'
-                                result['recovery_phone'] = None
+                                break
                             
                 # 4. 2-Step Verification phone
                 if re.search(r'^(?:2-Step Verification phone|两步验证电话|两步验证手机|用于进行两步验证的电话号码)', line, re.I):
-                    if i + 1 < len(lines):
-                        val = lines[i+1]
-                        phone_m = re.search(r'([+0-9\s-]{6,20})', val)
-                        if phone_m:
+                    for next_val in lines[i+1:min(i+4, len(lines))]:
+                        phone_m = re.search(r'([+0-9\s-]{6,20})', next_val)
+                        if phone_m and len(phone_m.group(1).replace(' ', '').replace('-', '')) >= 7:
                             result['two_factor_phone'] = phone_m.group(1).strip()
                             if not result['recovery_phone'] and result['has_recovery_phone'] == '有':
                                 result['recovery_phone'] = result['two_factor_phone']
                                 result['recovery_phone_verified'] = '已验证'
+                            break
                                 
                 # 5. Recovery email
                 if re.search(r'^(?:Recovery email|辅助邮箱|恢复邮箱)', line, re.I):
-                    if i + 1 < len(lines):
-                        val = lines[i+1]
-                        email_m = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', val)
+                    for next_val in lines[i+1:min(i+4, len(lines))]:
+                        email_m = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', next_val)
                         if email_m:
                             result['recovery_email'] = email_m.group(1).strip()
                             result['has_recovery_email'] = '有'
                             result['recovery_email_verified'] = '已验证'
+                            break
                             
                 # 6. Authenticator
-                if re.search(r'^(?:Authenticator|身份验证器)$', line, re.I):
-                    if i + 1 < len(lines):
-                        next_raw = lines[i+1]
-                        val = next_raw.lower()
-                        if re.search(r'not added|未添加|off|关闭|未开启', val, re.I):
-                            result['totp_status'] = '关闭'
-                            result['totp_added_at'] = None
-                        elif re.search(r'added|添加|已添加|启用|\d+月\d+日', val, re.I):
-                            result['totp_status'] = '开启'
+                if re.search(r'^(?:Authenticator|身份验证器)$', line, re.I) or re.search(r'(?:身份验证器|Authenticator)', line, re.I):
+                    lookahead = ' '.join(lines[i+1:min(i+4, len(lines))]).lower()
+                    if re.search(r'not added|未添加|off|关闭|未开启', lookahead, re.I):
+                        result['totp_status'] = '关闭'
+                        result['totp_added_at'] = None
+                    elif re.search(r'added|添加|已添加|启用|\d+月\d+日|添加时间', lookahead, re.I) or '添加时间' in line:
+                        result['totp_status'] = '开启'
+                        for next_raw in lines[i+1:min(i+4, len(lines))]:
                             m_date = re.search(r'(?:添加时间[：:]|已添加[：:]?|Added\s*)([^\n]+)', next_raw)
                             if m_date:
                                 result['totp_added_at'] = m_date.group(1).strip()
+                                break
                             else:
                                 m_cn = re.search(r'(\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日|\d{1,2}\s*月\s*\d{1,2}\s*日|[A-Za-z]+\s+\d{1,2})', next_raw)
                                 if m_cn:
                                     result['totp_added_at'] = m_cn.group(1).strip()
-                                else:
-                                    clean_date = next_raw.replace('Added', '').replace('已添加', '').replace('添加时间', '').replace('：', '').replace(':', '').strip()
-                                    result['totp_added_at'] = clean_date if clean_date else None
+                                    break
                             
                 # 7. Backup codes
                 if re.search(r'Backup codes|备用验证码|备用代码', line, re.I):
                     result['backup_codes_status'] = '开启'
                     rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', line, re.I)
-                    if not rem and i + 1 < len(lines):
-                        rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', lines[i+1], re.I)
+                    if not rem:
+                        for next_l in lines[i+1:min(i+4, len(lines))]:
+                            rem = re.search(r'(\d+)\s*(?:codes available|个可用|剩余|条剩余|remaining|个可用的验证码)', next_l, re.I)
+                            if rem:
+                                break
                     if rem:
                         result['backup_codes_remaining'] = int(rem.group(1))
                     else:
